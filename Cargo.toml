@@ -1,0 +1,44 @@
+[package]
+name = "logimesh"
+description = "A Rust microservice 2.0 framework."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+readme.workspace = true
+
+[lib]
+name = "logimesh"      # The name of the target.
+path = "src/lib.rs"    # The source file of the target.
+test = true            # Is tested by default.
+doctest = true         # Documentation examples are tested by default.
+bench = true           # Is benchmarked by default.
+doc = true             # Is documented by default.
+plugin = false         # Used as a compiler plugin (deprecated).
+proc-macro = false     # Set to `true` for a proc-macro library.
+harness = true         # Use libtest harness.
+crate-type = ["lib"]   # The crate types to generate.
+required-features = [] # Features required to build this target (N/A for lib).
+
+[dependencies]
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["andeya <andeyalee@outlook.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/andeya/logimesh"
+categories = ["web-programming"]
+keywords = ["servicemesh", "cloud-native"]
+readme = "./README.md"
+
+[workspace.dependencies]
