@@ -1,0 +1,12 @@
+[package]
+name = "lrcall"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
+readme.workspace = true
+
+[dependencies]
