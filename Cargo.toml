@@ -53,7 +53,7 @@ keywords = [
     "servicemesh",
     "cloud-native",
 ]
-readme = "./README.md"
+readme = "README.md"
 rust-version = "1.80.1"
 
 [workspace.dependencies]
