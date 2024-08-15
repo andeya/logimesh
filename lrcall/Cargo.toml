@@ -1,5 +1,6 @@
 [package]
 name = "lrcall"
+description = "lrcall is a Rust communication framework that is compatible with local invocations and RPC."
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,5 +9,6 @@ repository.workspace = true
 categories.workspace = true
 keywords.workspace = true
 readme.workspace = true
+rust-version.workspace = true
 
 [dependencies]

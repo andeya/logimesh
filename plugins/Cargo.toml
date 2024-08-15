@@ -1,0 +1,38 @@
+[package]
+name = "lrcall-plugins"
+version = "0.1.0"
+rust-version = "1.80.1"
+authors = [
+    "Andeya Lee <andeyalee@outlook.com>",
+    "Adam Wright <adam.austin.wright@gmail.com>",
+    "Tim Kuehn <timothy.j.kuehn@gmail.com>",
+]
+edition = "2021"
+license = "MIT"
+documentation = "https://docs.rs/lrcall-plugins"
+homepage = "https://github.com/andeya/logimesh"
+repository = "https://github.com/andeya/logimesh"
+keywords = ["rpc", "network", "server", "api", "microservices"]
+categories = ["asynchronous", "network-programming"]
+readme = "../README.md"
+description = "Proc macros for lrcall."
+
+[features]
+serde1 = []
+
+[badges]
+travis-ci = { repository = "andeya/logimesh" }
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+
+[lib]
+proc-macro = true
+
+[dev-dependencies]
+assert-type-eq = "0.1.0"
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+tarpc = { version = "0.34", features = ["serde1"] }

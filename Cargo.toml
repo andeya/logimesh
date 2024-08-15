@@ -1,6 +1,6 @@
 [package]
 name = "logimesh"
-description = "A Rust microservice 2.0 framework."
+description = "logimesh is a Rust microservice 2.0 framework."
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,6 +9,7 @@ repository.workspace = true
 categories.workspace = true
 keywords.workspace = true
 readme.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "logimesh"      # The name of the target.
@@ -34,16 +35,25 @@ tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
 
 [workspace]
 resolver = "2"
-members = ["lrcall"]
+members = ["lrcall", "plugins"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["andeya <andeyalee@outlook.com>"]
+authors = ["Andeya Lee <andeyalee@outlook.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/andeya/logimesh"
-categories = ["web-programming"]
-keywords = ["servicemesh", "cloud-native"]
+categories = ["asynchronous", "network-programming", "web-programming"]
+keywords = [
+    "rpc",
+    "network",
+    "server",
+    "api",
+    "microservices",
+    "servicemesh",
+    "cloud-native",
+]
 readme = "./README.md"
+rust-version = "1.80.1"
 
 [workspace.dependencies]
