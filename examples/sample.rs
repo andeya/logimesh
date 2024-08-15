@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use futures::prelude::*;
 use tarpc::server::{self, Channel};
 use tarpc::{client, context};
@@ -25,19 +23,19 @@ impl World for HelloServer {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_service().unwrap();
+    let local_service=HelloServer;
     let (client_transport, server_transport) = tarpc::transport::channel::unbounded();
 
     let server = server::BaseChannel::with_defaults(server_transport);
     tokio::spawn(
         server
-            .execute(get_server().clone().serve())
+            .execute(local_service.clone().serve())
             // Handle all requests concurrently.
             .for_each(|response| async move {
                 tokio::spawn(response);
             }),
     );
-    let api = WorldAPI::new(client::Config::default(), client_transport);
+    let api = WorldAPI::new(local_service, client::Config::default(), client_transport);
 
     let hello = api.hello(Context::current(false), "Stim".to_string()).await?;
 
@@ -46,15 +44,9 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-static S: OnceLock<HelloServer> = OnceLock::new();
-fn init_service() -> Result<(), HelloServer> {
-    S.set(HelloServer)
-}
-fn get_server() -> &'static HelloServer {
-    S.get().unwrap()
-}
-struct WorldAPI {
+struct WorldAPI<LS> {
     client: WorldClient<tarpc::client::Channel<WorldRequest, WorldResponse>>,
+    local_service: LS,
 }
 
 struct Context {
@@ -69,20 +61,25 @@ impl Context {
         }
     }
 }
-impl WorldAPI {
-    fn new<T>(config: ::tarpc::client::Config, client_transport: T) -> Self
+
+impl<LS> WorldAPI<LS>
+where
+    LS: World + Clone,
+{
+    fn new<T>(local_server: LS, config: ::tarpc::client::Config, client_transport: T) -> Self
     where
         T: ::tarpc::Transport<::tarpc::ClientMessage<WorldRequest>, ::tarpc::Response<WorldResponse>> + Send + 'static,
     {
         Self {
             client: WorldClient::new(config, client_transport).spawn(),
+            local_service: local_server,
         }
     }
-    async fn hello(self, ctx: Context, name: String) -> ::core::result::Result<String, ::tarpc::client::RpcError> {
+    async fn hello(&self, ctx: Context, name: String) -> ::core::result::Result<String, ::tarpc::client::RpcError> {
         if ctx.is_rpc {
             self.client.hello(ctx.rpc, name).await
         } else {
-            Ok(S.get().cloned().unwrap().hello(ctx.rpc, name).await)
+            Ok(self.local_service.clone().hello(ctx.rpc, name).await)
         }
     }
 }
