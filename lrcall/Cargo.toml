@@ -1,14 +1,29 @@
 [package]
 name = "lrcall"
 description = "lrcall is a Rust communication framework that is compatible with local invocations and RPC."
-version.workspace = true
-edition.workspace = true
+# readme = "README.md"
+keywords = ["rpc", "network", "server", "api", "microservices"]
+categories = ["asynchronous", "network-programming"]
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+homepage.workspace = true
 repository.workspace = true
-categories.workspace = true
-keywords.workspace = true
-readme.workspace = true
-rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = true            # Is tested by default.
+doctest = true         # Documentation examples are tested by default.
+bench = true           # Is benchmarked by default.
+doc = true             # Is documented by default.
+proc-macro = false     # Set to `true` for a proc-macro library.
+harness = true         # Use libtest harness.
+crate-type = ["lib"]   # The crate types to generate.
+required-features = [] # Features required to build this target (N/A for lib).
 
 [dependencies]
+
+[dev-dependencies]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

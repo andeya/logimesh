@@ -1,27 +1,25 @@
 [package]
 name = "lrcall-plugins"
-version = "0.1.0"
-rust-version = "1.80.1"
+description = "lrcall-plugins is Proc macros for lrcall."
+# readme = "../lrcall/README.md"
+keywords = ["rpc", "network", "server", "api", "microservices"]
+categories = ["asynchronous", "network-programming"]
 authors = [
     "Andeya Lee <andeyalee@outlook.com>",
     "Adam Wright <adam.austin.wright@gmail.com>",
     "Tim Kuehn <timothy.j.kuehn@gmail.com>",
 ]
-edition = "2021"
 license = "MIT"
-documentation = "https://docs.rs/lrcall-plugins"
-homepage = "https://github.com/andeya/logimesh"
-repository = "https://github.com/andeya/logimesh"
-keywords = ["rpc", "network", "server", "api", "microservices"]
-categories = ["asynchronous", "network-programming"]
-readme.workspace = true
-description = "Proc macros for lrcall."
+rust-version.workspace = true
+homepage.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
 serde1 = []
-
-[badges]
-travis-ci = { repository = "andeya/logimesh" }
 
 [dependencies]
 proc-macro2 = "1.0"
