@@ -14,7 +14,7 @@ homepage = "https://github.com/andeya/logimesh"
 repository = "https://github.com/andeya/logimesh"
 keywords = ["rpc", "network", "server", "api", "microservices"]
 categories = ["asynchronous", "network-programming"]
-readme = "../README.md"
+readme.workspace = true
 description = "Proc macros for lrcall."
 
 [features]
