@@ -1,7 +1,7 @@
 [package]
 name = "lrcall"
 description = "lrcall is a Rust communication framework that is compatible with local invocations and RPC."
-# readme = "README.md"
+readme = "README.md"
 keywords = ["rpc", "network", "server", "api", "microservices"]
 categories = ["asynchronous", "network-programming"]
 rust-version.workspace = true

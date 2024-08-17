@@ -37,7 +37,7 @@ resolver = "2"
 members = ["lrcall", "plugins"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Andeya Lee <andeyalee@outlook.com>"]
 license = "Apache-2.0"
