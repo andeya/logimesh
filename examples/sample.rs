@@ -1,10 +1,10 @@
 use futures::prelude::*;
-use tarpc::server::{self, Channel};
-use tarpc::{client, context};
+use lrcall::server::{self, Channel};
+use lrcall::{client, context};
 
 // This is the service definition. It looks a lot like a trait definition.
 // It defines one RPC, hello, which takes one arg, name, and returns a String.
-#[tarpc::service]
+#[lrcall::service]
 trait World {
     /// Returns a greeting for name.
     async fn hello(name: String) -> String;
@@ -24,7 +24,7 @@ impl World for HelloServer {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let local_service=HelloServer;
-    let (client_transport, server_transport) = tarpc::transport::channel::unbounded();
+    let (client_transport, server_transport) = lrcall::transport::channel::unbounded();
 
     let server = server::BaseChannel::with_defaults(server_transport);
     tokio::spawn(
@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 struct WorldAPI<LS> {
-    client: WorldClient<tarpc::client::Channel<WorldRequest, WorldResponse>>,
+    client: WorldClient<lrcall::client::Channel<WorldRequest, WorldResponse>>,
     local_service: LS,
 }
 
@@ -66,16 +66,16 @@ impl<LS> WorldAPI<LS>
 where
     LS: World + Clone,
 {
-    fn new<T>(local_server: LS, config: ::tarpc::client::Config, client_transport: T) -> Self
+    fn new<T>(local_server: LS, config: ::lrcall::client::Config, client_transport: T) -> Self
     where
-        T: ::tarpc::Transport<::tarpc::ClientMessage<WorldRequest>, ::tarpc::Response<WorldResponse>> + Send + 'static,
+        T: ::lrcall::Transport<::lrcall::ClientMessage<WorldRequest>, ::lrcall::Response<WorldResponse>> + Send + 'static,
     {
         Self {
             client: WorldClient::new(config, client_transport).spawn(),
             local_service: local_server,
         }
     }
-    async fn hello(&self, ctx: Context, name: String) -> ::core::result::Result<String, ::tarpc::client::RpcError> {
+    async fn hello(&self, ctx: Context, name: String) -> ::core::result::Result<String, ::lrcall::client::RpcError> {
         if ctx.is_rpc {
             self.client.hello(ctx.rpc, name).await
         } else {

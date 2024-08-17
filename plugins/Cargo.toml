@@ -24,7 +24,7 @@ serde1 = []
 [dependencies]
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
-syn = { workspace = true }
+syn = { workspace = true , features = ["full", "extra-traits"]}
 
 [lib]
 proc-macro = true
@@ -33,4 +33,4 @@ proc-macro = true
 assert-type-eq = {workspace = true}
 futures = {workspace = true}
 serde = { workspace = true, features = ["derive"] }
-tarpc = { workspace = true, features = ["serde1"] }
+lrcall = { workspace = true, features = ["serde1"] }

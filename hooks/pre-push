@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Copyright 2016 Google Inc. All Rights Reserved.
+#
+# Licensed under the MIT License, <LICENSE or http://opensource.org/licenses/MIT>.
+# This file may not be copied, modified, or distributed except according to those terms.
+
+# Pre-push hook for the tarpc repository. To use this hook, copy it to .git/hooks in your repository
+# root.
+#
+# This hook ensures the working copy does not contain uncommitted changes, as it is a common error
+# to test locally using a dirty working copy without realizing the tests are using a dirty working
+# copy.
+#
+# Use git push --no-verify to skip the pre-push hook altogether.
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m' # No Color
+
+PREFIX="${GREEN}[PREPUSH]${NC}"
+FAILURE="${RED}FAILED${NC}"
+SKIPPED="${YELLOW}SKIPPED${NC}"
+SUCCESS="${GREEN}ok${NC}"
+
+printf "${PREFIX} Clean working copy ... "
+git diff --exit-code &>/dev/null
+if [ "$?" == 0 ]; then
+    printf "${SUCCESS}\n"
+else
+    printf "${FAILURE}\n"
+    exit 1
+fi
+
+exit 0

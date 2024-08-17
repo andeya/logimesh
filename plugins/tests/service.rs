@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
-use tarpc::context;
+use lrcall::context;
 
 #[test]
 fn att_service_trait() {
-    #[tarpc::service]
+    #[lrcall::service]
     trait Foo {
         async fn two_part(s: String, i: i32) -> (String, i32);
         async fn bar(s: String) -> String;
@@ -29,7 +29,7 @@ fn att_service_trait() {
 fn raw_idents() {
     type r#yield = String;
 
-    #[tarpc::service]
+    #[lrcall::service]
     trait r#trait {
         async fn r#await(r#struct: r#yield, r#enum: i32) -> (r#yield, i32);
         async fn r#fn(r#impl: r#yield) -> r#yield;
@@ -56,7 +56,7 @@ fn raw_idents() {
 
 #[test]
 fn service_with_cfg_rpc() {
-    #[tarpc::service]
+    #[lrcall::service]
     trait Foo {
         async fn foo();
         #[cfg(not(test))]
@@ -70,7 +70,7 @@ fn service_with_cfg_rpc() {
 
 #[test]
 fn syntax() {
-    #[tarpc::service]
+    #[lrcall::service]
     trait Syntax {
         #[deny(warnings)]
         #[allow(non_snake_case)]
@@ -93,7 +93,7 @@ fn syntax() {
 
 #[test]
 fn custom_derives() {
-    #[tarpc::service(derive = [Clone, Hash])]
+    #[lrcall::service(derive = [Clone, Hash])]
     trait Foo {
         async fn foo();
     }
@@ -108,7 +108,7 @@ fn custom_derives() {
 
 #[test]
 fn implicit_serde() {
-    #[tarpc::service]
+    #[lrcall::service]
     trait Foo {
         async fn foo();
     }
@@ -126,7 +126,7 @@ fn implicit_serde() {
 #[allow(deprecated)]
 #[test]
 fn explicit_serde() {
-    #[tarpc::service(derive_serde = true)]
+    #[lrcall::service(derive_serde = true)]
     trait Foo {
         async fn foo();
     }

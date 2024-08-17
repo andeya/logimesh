@@ -4,8 +4,12 @@ description = "lrcall is a Rust communication framework that is compatible with 
 readme = "README.md"
 keywords = ["rpc", "network", "server", "api", "microservices"]
 categories = ["asynchronous", "network-programming"]
+authors = [
+    "Andeya Lee <andeyalee@outlook.com>",
+    "Adam Wright <adam.austin.wright@gmail.com>",
+    "Tim Kuehn <timothy.j.kuehn@gmail.com>",
+]
 rust-version.workspace = true
-authors.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -22,32 +26,100 @@ harness = true         # Use libtest harness.
 crate-type = ["lib"]   # The crate types to generate.
 required-features = [] # Features required to build this target (N/A for lib).
 
+[features]
+default = []
+
+serde1 = ["lrcall-plugins/serde1", "serde", "serde/derive", "serde/rc"]
+tokio1 = ["tokio/rt"]
+serde-transport = ["serde1", "tokio1", "tokio-serde", "tokio-util/codec"]
+serde-transport-json = ["serde-transport", "tokio-serde/json"]
+serde-transport-bincode = ["serde-transport", "tokio-serde/bincode"]
+tcp = ["tokio/net"]
+unix = ["tokio/net"]
+
+full = [
+    "serde1",
+    "tokio1",
+    "serde-transport",
+    "serde-transport-json",
+    "serde-transport-bincode",
+    "tcp",
+    "unix",
+]
+
 [dependencies]
+anyhow = { workspace = true }
+fnv = { workspace = true }
+futures = { workspace = true }
+humantime = { workspace = true }
+pin-project = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true, optional = true, features = ["derive"] }
+static_assertions = { workspace = true }
 lrcall-plugins = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+tokio-util = { workspace = true, features = ["time"] }
+tokio-serde = { workspace = true, optional = true }
+tracing = { workspace = true, default-features = false, features = [
+    "attributes",
+    "log",
+] }
+tracing-opentelemetry = { workspace = true, default-features = false }
+opentelemetry = { workspace = true, default-features = false }
+opentelemetry-semantic-conventions = { workspace = true }
 
 [dev-dependencies]
+assert_matches = "1.4"
+bincode = "1.3"
+bytes = { version = "1", features = ["serde"] }
+flate2 = "1.0"
+futures-test = "0.3"
+opentelemetry = { version = "0.24.0", default-features = false }
+opentelemetry-otlp = "0.17.0"
+opentelemetry_sdk = { version = "0.24.1", features = ["rt-tokio"] }
+pin-utils = "0.1.0"
+serde_bytes = "0.11"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["full", "test-util", "tracing"] }
+console-subscriber = "0.4"
+tokio-serde = { version = "0.9", features = ["json", "bincode"] }
+trybuild = "1.0"
+tokio-rustls = "0.25"
+rustls-pemfile = "2.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
-[features]
-serde1 = []
+[[example]]
+name = "compression"
+required-features = ["serde-transport", "tcp"]
 
-# default = []
+[[example]]
+name = "tracing"
+required-features = ["full"]
 
-# serde1 = ["tarpc-plugins/serde1", "serde", "serde/derive", "serde/rc"]
-# tokio1 = ["tokio/rt"]
-# serde-transport = ["serde1", "tokio1", "tokio-serde", "tokio-util/codec"]
-# serde-transport-json = ["serde-transport", "tokio-serde/json"]
-# serde-transport-bincode = ["serde-transport", "tokio-serde/bincode"]
-# tcp = ["tokio/net"]
-# unix = ["tokio/net"]
+[[example]]
+name = "readme"
+required-features = ["full"]
 
-# full = [
-#     "serde1",
-#     "tokio1",
-#     "serde-transport",
-#     "serde-transport-json",
-#     "serde-transport-bincode",
-#     "tcp",
-#     "unix",
-# ]
+[[example]]
+name = "pubsub"
+required-features = ["full"]
+
+[[example]]
+name = "custom_transport"
+required-features = ["serde1", "tokio1", "serde-transport"]
+
+[[example]]
+name = "tls_over_tcp"
+required-features = ["full"]
+
+[[test]]
+name = "service_functional"
+required-features = ["serde-transport"]
+
+[[test]]
+name = "dataservice"
+required-features = ["serde-transport", "tcp"]

@@ -179,7 +179,7 @@ impl Parse for DeriveMeta {
                     result,
                     syn::Error::new(
                         meta.span(),
-                        "tarpc::service does not support this meta item"
+                        "lrcall::service does not support this meta item"
                     )
                 );
                 continue;
@@ -192,7 +192,7 @@ impl Parse for DeriveMeta {
                         result,
                         syn::Error::new(
                             meta.span(),
-                            "tarpc::service does not support this meta item"
+                            "lrcall::service does not support this meta item"
                         )
                     );
                     continue;
@@ -237,7 +237,7 @@ impl Parse for DeriveMeta {
                             result,
                             syn::Error::new(
                                 meta.span(),
-                                "To enable serde, first enable the `serde1` feature of tarpc"
+                                "To enable serde, first enable the `serde1` feature of lrcall"
                             )
                         );
                     }
@@ -261,7 +261,7 @@ impl Parse for DeriveMeta {
                     result,
                     syn::Error::new(
                         meta.span(),
-                        "tarpc::service does not support this meta item"
+                        "lrcall::service does not support this meta item"
                     )
                 );
                 continue;
@@ -272,8 +272,8 @@ impl Parse for DeriveMeta {
             let deprecation_hack = quote! {
                 const _: () = {
                     #[deprecated(
-                        note = "\nThe form `tarpc::service(derive_serde = true)` is deprecated.\
-                        \nUse `tarpc::service(derive = [Serialize, Deserialize])`."
+                        note = "\nThe form `lrcall::service(derive_serde = true)` is deprecated.\
+                        \nUse `lrcall::service(derive = [Serialize, Deserialize])`."
                     )]
                     const DEPRECATED_SYNTAX: () = ();
                     let _ = DEPRECATED_SYNTAX;
@@ -291,7 +291,7 @@ impl Parse for DeriveMeta {
                 result,
                 syn::Error::new(
                     input.span(),
-                    "tarpc does not support `derive_serde` and `derive` at the same time"
+                    "lrcall does not support `derive_serde` and `derive` at the same time"
                 )
             );
         }
@@ -332,16 +332,16 @@ impl Parse for DeriveMeta {
 /// Adds the following annotations to the annotated item:
 ///
 /// ```rust
-/// #[derive(::tarpc::serde::Serialize, ::tarpc::serde::Deserialize)]
-/// #[serde(crate = "tarpc::serde")]
+/// #[derive(::lrcall::serde::Serialize, ::lrcall::serde::Deserialize)]
+/// #[serde(crate = "lrcall::serde")]
 /// # struct Foo;
 /// ```
 #[proc_macro_attribute]
 #[cfg(feature = "serde1")]
 pub fn derive_serde(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut gen: proc_macro2::TokenStream = quote! {
-        #[derive(::tarpc::serde::Serialize, ::tarpc::serde::Deserialize)]
-        #[serde(crate = "::tarpc::serde")]
+        #[derive(::lrcall::serde::Serialize, ::lrcall::serde::Deserialize)]
+        #[serde(crate = "::lrcall::serde")]
     };
     gen.extend(proc_macro2::TokenStream::from(item));
     proc_macro::TokenStream::from(gen)
@@ -376,7 +376,7 @@ fn collect_cfg_attrs(rpcs: &[RpcMethod]) -> Vec<Vec<&Attribute>> {
 /// # Example
 ///
 /// ```no_run
-/// use tarpc::{client, transport, service, server::{self, Channel}, context::Context};
+/// use lrcall::{client, transport, service, server::{self, Channel}, context::Context};
 ///
 /// #[service]
 /// pub trait Calculator {
@@ -445,8 +445,8 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
         Some(Derive::Serde(serde)) => {
             if *serde {
                 Some(quote! {
-                    #[derive(::tarpc::serde::Serialize, ::tarpc::serde::Deserialize)]
-                    #[serde(crate = "::tarpc::serde")]
+                    #[derive(::lrcall::serde::Serialize, ::lrcall::serde::Deserialize)]
+                    #[serde(crate = "::lrcall::serde")]
                 })
             } else {
                 None
@@ -455,8 +455,8 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
         None => {
             if cfg!(feature = "serde1") {
                 Some(quote! {
-                    #[derive(::tarpc::serde::Serialize, ::tarpc::serde::Deserialize)]
-                    #[serde(crate = "::tarpc::serde")]
+                    #[derive(::lrcall::serde::Serialize, ::lrcall::serde::Deserialize)]
+                    #[serde(crate = "::lrcall::serde")]
                 })
             } else {
                 None
@@ -559,7 +559,7 @@ impl<'a> ServiceGenerator<'a> {
                  )| {
                     quote! {
                         #( #attrs )*
-                        async fn #ident(self, context: ::tarpc::context::Context, #( #args ),*) -> #output;
+                        async fn #ident(self, context: ::lrcall::context::Context, #( #args ),*) -> #output;
                     }
                 },
             );
@@ -571,18 +571,18 @@ impl<'a> ServiceGenerator<'a> {
                 #( #rpc_fns )*
 
                 /// Returns a serving function to use with
-                /// [InFlightRequest::execute](::tarpc::server::InFlightRequest::execute).
+                /// [InFlightRequest::execute](::lrcall::server::InFlightRequest::execute).
                 fn serve(self) -> #server_ident<Self> {
                     #server_ident { service: self }
                 }
             }
 
             #[doc = #stub_doc]
-            #vis trait #client_stub_ident: ::tarpc::client::stub::Stub<Req = #request_ident, Resp = #response_ident> {
+            #vis trait #client_stub_ident: ::lrcall::client::stub::Stub<Req = #request_ident, Resp = #response_ident> {
             }
 
             impl<S> #client_stub_ident for S
-                where S: ::tarpc::client::stub::Stub<Req = #request_ident, Resp = #response_ident>
+                where S: ::lrcall::client::stub::Stub<Req = #request_ident, Resp = #response_ident>
             {
             }
         }
@@ -594,7 +594,7 @@ impl<'a> ServiceGenerator<'a> {
         } = self;
 
         quote! {
-            /// A serving function to use with [::tarpc::server::InFlightRequest::execute].
+            /// A serving function to use with [::lrcall::server::InFlightRequest::execute].
             #[derive(Clone)]
             #vis struct #server_ident<S> {
                 service: S,
@@ -616,15 +616,15 @@ impl<'a> ServiceGenerator<'a> {
         } = self;
 
         quote! {
-            impl<S> ::tarpc::server::Serve for #server_ident<S>
+            impl<S> ::lrcall::server::Serve for #server_ident<S>
                 where S: #service_ident
             {
                 type Req = #request_ident;
                 type Resp = #response_ident;
 
 
-                async fn serve(self, ctx: ::tarpc::context::Context, req: #request_ident)
-                    -> ::core::result::Result<#response_ident, ::tarpc::ServerError> {
+                async fn serve(self, ctx: ::lrcall::context::Context, req: #request_ident)
+                    -> ::core::result::Result<#response_ident, ::lrcall::ServerError> {
                     match req {
                         #(
                             #( #method_cfgs )*
@@ -665,7 +665,7 @@ impl<'a> ServiceGenerator<'a> {
                     #camel_case_idents{ #( #args ),* }
                 ),*
             }
-            impl ::tarpc::RequestName for #request_ident {
+            impl ::lrcall::RequestName for #request_ident {
                 fn name(&self) -> &'static str {
                     match self {
                         #(
@@ -716,7 +716,7 @@ impl<'a> ServiceGenerator<'a> {
             /// The client stub that makes RPC calls to the server. All request methods return
             /// [Futures](::core::future::Future).
             #vis struct #client_ident<
-                Stub = ::tarpc::client::Channel<#request_ident, #response_ident>
+                Stub = ::lrcall::client::Channel<#request_ident, #response_ident>
             >(Stub);
         }
     }
@@ -733,16 +733,16 @@ impl<'a> ServiceGenerator<'a> {
         quote! {
             impl #client_ident {
                 /// Returns a new client stub that sends requests over the given transport.
-                #vis fn new<T>(config: ::tarpc::client::Config, transport: T)
-                    -> ::tarpc::client::NewClient<
+                #vis fn new<T>(config: ::lrcall::client::Config, transport: T)
+                    -> ::lrcall::client::NewClient<
                         Self,
-                        ::tarpc::client::RequestDispatch<#request_ident, #response_ident, T>
+                        ::lrcall::client::RequestDispatch<#request_ident, #response_ident, T>
                     >
                 where
-                    T: ::tarpc::Transport<::tarpc::ClientMessage<#request_ident>, ::tarpc::Response<#response_ident>>
+                    T: ::lrcall::Transport<::lrcall::ClientMessage<#request_ident>, ::lrcall::Response<#response_ident>>
                 {
-                    let new_client = ::tarpc::client::new(config, transport);
-                    ::tarpc::client::NewClient {
+                    let new_client = ::lrcall::client::new(config, transport);
+                    ::lrcall::client::NewClient {
                         client: #client_ident(new_client.client),
                         dispatch: new_client.dispatch,
                     }
@@ -750,7 +750,7 @@ impl<'a> ServiceGenerator<'a> {
             }
 
             impl<Stub> ::core::convert::From<Stub> for #client_ident<Stub>
-                where Stub: ::tarpc::client::stub::Stub<
+                where Stub: ::lrcall::client::stub::Stub<
                     Req = #request_ident,
                     Resp = #response_ident>
             {
@@ -780,15 +780,15 @@ impl<'a> ServiceGenerator<'a> {
 
         quote! {
             impl<Stub> #client_ident<Stub>
-                where Stub: ::tarpc::client::stub::Stub<
+                where Stub: ::lrcall::client::stub::Stub<
                     Req = #request_ident,
                     Resp = #response_ident>
             {
                 #(
                     #[allow(unused)]
                     #( #method_attrs )*
-                    #vis fn #method_idents(&self, ctx: ::tarpc::context::Context, #( #args ),*)
-                        -> impl ::core::future::Future<Output = ::core::result::Result<#return_types, ::tarpc::client::RpcError>> + '_ {
+                    #vis fn #method_idents(&self, ctx: ::lrcall::context::Context, #( #args ),*)
+                        -> impl ::core::future::Future<Output = ::core::result::Result<#return_types, ::lrcall::client::RpcError>> + '_ {
                         let request = #request_ident::#camel_case_idents { #( #arg_pats ),* };
                         let resp = self.0.call(ctx, request);
                         async move {
