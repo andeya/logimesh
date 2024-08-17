@@ -25,10 +25,10 @@ required-features = [] # Features required to build this target (N/A for lib).
 [dependencies]
 
 [dev-dependencies]
-anyhow = "1.0"
-futures = "0.3"
-tarpc = { version = "0.34", features = ["tokio1"] }
-tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+anyhow = {workspace = true}
+futures = {workspace = true}
+tarpc = { workspace = true, features = ["tokio1"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -57,3 +57,17 @@ keywords = [
 ]
 
 [workspace.dependencies]
+
+# all dependencies
+lrcall-plugins = { path = "./plugins" }
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0.74", features = ["full", "extra-traits"] }
+
+# only for dev-dependencies
+assert-type-eq = "0.1.0"
+futures = "0.3"
+serde = { version = "1.0" }
+anyhow = "1.0"
+tarpc = { version = "0.34" }
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }

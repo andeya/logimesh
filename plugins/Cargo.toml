@@ -22,15 +22,15 @@ edition.workspace = true
 serde1 = []
 
 [dependencies]
-proc-macro2 = "1.0"
-quote = "1.0"
-syn = { version = "2.0", features = ["full"] }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
 
 [lib]
 proc-macro = true
 
 [dev-dependencies]
-assert-type-eq = "0.1.0"
-futures = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-tarpc = { version = "0.34", features = ["serde1"] }
+assert-type-eq = {workspace = true}
+futures = {workspace = true}
+serde = { workspace = true, features = ["derive"] }
+tarpc = { workspace = true, features = ["serde1"] }

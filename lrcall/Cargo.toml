@@ -23,7 +23,31 @@ crate-type = ["lib"]   # The crate types to generate.
 required-features = [] # Features required to build this target (N/A for lib).
 
 [dependencies]
+lrcall-plugins = { workspace = true }
 
 [dev-dependencies]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+serde1 = []
+
+# default = []
+
+# serde1 = ["tarpc-plugins/serde1", "serde", "serde/derive", "serde/rc"]
+# tokio1 = ["tokio/rt"]
+# serde-transport = ["serde1", "tokio1", "tokio-serde", "tokio-util/codec"]
+# serde-transport-json = ["serde-transport", "tokio-serde/json"]
+# serde-transport-bincode = ["serde-transport", "tokio-serde/bincode"]
+# tcp = ["tokio/net"]
+# unix = ["tokio/net"]
+
+# full = [
+#     "serde1",
+#     "tokio1",
+#     "serde-transport",
+#     "serde-transport-json",
+#     "serde-transport-bincode",
+#     "tcp",
+#     "unix",
+# ]
