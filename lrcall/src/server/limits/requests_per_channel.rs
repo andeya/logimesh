@@ -5,13 +5,14 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-use crate::{
-    server::{Channel, Config},
-    Response, ServerError,
-};
-use futures::{prelude::*, ready, task::*};
+use crate::server::{Channel, Config};
+use crate::{Response, ServerError};
+use futures::prelude::*;
+use futures::ready;
+use futures::task::*;
 use pin_project::pin_project;
-use std::{io, pin::Pin};
+use std::io;
+use std::pin::Pin;
 
 /// A [`Channel`] that limits the number of concurrent requests by throttling.
 ///
@@ -40,10 +41,7 @@ where
     /// Returns a new `MaxRequests` that wraps the given channel and limits concurrent requests to
     /// `max_in_flight_requests`.
     pub fn new(inner: C, max_in_flight_requests: usize) -> Self {
-        MaxRequests {
-            max_in_flight_requests,
-            inner,
-        }
+        MaxRequests { max_in_flight_requests, inner }
     }
 }
 
@@ -54,17 +52,13 @@ where
     type Item = <C as Stream>::Item;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        while self.as_mut().in_flight_requests() >= *self.as_mut().project().max_in_flight_requests
-        {
+        while self.as_mut().in_flight_requests() >= *self.as_mut().project().max_in_flight_requests {
             ready!(self.as_mut().project().inner.poll_ready(cx)?);
 
             match ready!(self.as_mut().project().inner.poll_next(cx)?) {
                 Some(r) => {
                     let _entered = r.span.enter();
-                    tracing::info!(
-                        in_flight_requests = self.as_mut().in_flight_requests(),
-                        "ThrottleRequest",
-                    );
+                    tracing::info!(in_flight_requests = self.as_mut().in_flight_requests(), "ThrottleRequest",);
 
                     self.as_mut().start_send(Response {
                         request_id: r.request.id,
@@ -73,7 +67,7 @@ where
                             detail: "server throttled the request.".into(),
                         }),
                     })?;
-                }
+                },
                 None => return Poll::Ready(None),
             }
         }
@@ -91,10 +85,7 @@ where
         self.project().inner.poll_ready(cx)
     }
 
-    fn start_send(
-        self: Pin<&mut Self>,
-        item: Response<<C as Channel>::Resp>,
-    ) -> Result<(), Self::Error> {
+    fn start_send(self: Pin<&mut Self>, item: Response<<C as Channel>::Resp>) -> Result<(), Self::Error> {
         self.project().inner.start_send(item)
     }
 
@@ -150,10 +141,7 @@ where
     <S as Stream>::Item: Channel,
 {
     pub(crate) fn new(inner: S, max_in_flight_requests: usize) -> Self {
-        Self {
-            inner,
-            max_in_flight_requests,
-        }
+        Self { inner, max_in_flight_requests }
     }
 }
 
@@ -166,10 +154,7 @@ where
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         match ready!(self.as_mut().project().inner.poll_next(cx)) {
-            Some(channel) => Poll::Ready(Some(MaxRequests::new(
-                channel,
-                *self.project().max_in_flight_requests,
-            ))),
+            Some(channel) => Poll::Ready(Some(MaxRequests::new(channel, *self.project().max_in_flight_requests))),
             None => Poll::Ready(None),
         }
     }
@@ -179,15 +164,11 @@ where
 mod tests {
     use super::*;
 
-    use crate::server::{
-        testing::{self, FakeChannel, PollExt},
-        TrackedRequest,
-    };
+    use crate::server::testing::{self, FakeChannel, PollExt};
+    use crate::server::TrackedRequest;
     use pin_utils::pin_mut;
-    use std::{
-        marker::PhantomData,
-        time::{Duration, Instant},
-    };
+    use std::marker::PhantomData;
+    use std::time::{Duration, Instant};
     use tracing::Span;
 
     #[tokio::test]
@@ -199,11 +180,7 @@ mod tests {
 
         pin_mut!(throttler);
         for i in 0..5 {
-            throttler
-                .inner
-                .in_flight_requests
-                .start_request(i, Instant::now() + Duration::from_secs(1), Span::current())
-                .unwrap();
+            throttler.inner.in_flight_requests.start_request(i, Instant::now() + Duration::from_secs(1), Span::current()).unwrap();
         }
         assert_eq!(throttler.as_mut().in_flight_requests(), 5);
     }
@@ -230,10 +207,7 @@ mod tests {
         throttler.inner.push_req(0, 1);
         assert!(throttler.as_mut().poll_ready(&mut testing::cx()).is_ready());
         assert_eq!(
-            throttler
-                .as_mut()
-                .poll_next(&mut testing::cx())?
-                .map(|r| r.map(|r| (r.request.id, r.request.message))),
+            throttler.as_mut().poll_next(&mut testing::cx())?.map(|r| r.map(|r| (r.request.id, r.request.message))),
             Poll::Ready(Some((0, 1)))
         );
         Ok(())
@@ -268,8 +242,7 @@ mod tests {
             ghost: PhantomData<fn(Out) -> In>,
         }
         impl PendingSink<(), ()> {
-            pub fn default<Req, Resp>(
-            ) -> PendingSink<io::Result<TrackedRequest<Req>>, Response<Resp>> {
+            pub fn default<Req, Resp>() -> PendingSink<io::Result<TrackedRequest<Req>>, Response<Resp>> {
                 PendingSink { ghost: PhantomData }
             }
         }
@@ -318,25 +291,9 @@ mod tests {
         };
 
         pin_mut!(throttler);
-        throttler
-            .inner
-            .in_flight_requests
-            .start_request(0, Instant::now() + Duration::from_secs(1), Span::current())
-            .unwrap();
-        throttler
-            .as_mut()
-            .start_send(Response {
-                request_id: 0,
-                message: Ok(1),
-            })
-            .unwrap();
+        throttler.inner.in_flight_requests.start_request(0, Instant::now() + Duration::from_secs(1), Span::current()).unwrap();
+        throttler.as_mut().start_send(Response { request_id: 0, message: Ok(1) }).unwrap();
         assert_eq!(throttler.inner.in_flight_requests.len(), 0);
-        assert_eq!(
-            throttler.inner.sink.front(),
-            Some(&Response {
-                request_id: 0,
-                message: Ok(1),
-            })
-        );
+        assert_eq!(throttler.inner.sink.front(), Some(&Response { request_id: 0, message: Ok(1) }));
     }
 }

@@ -42,19 +42,14 @@ async fn main() -> anyhow::Result<()> {
             let framed = codec_builder.new_framed(conn);
             let transport = transport::new(framed, Bincode::default());
 
-            let fut = BaseChannel::with_defaults(transport)
-                .execute(Service.serve())
-                .for_each(spawn);
+            let fut = BaseChannel::with_defaults(transport).execute(Service.serve()).for_each(spawn);
             tokio::spawn(fut);
         }
     });
 
     let conn = UnixStream::connect(bind_addr).await?;
     let transport = transport::new(codec_builder.new_framed(conn), Bincode::default());
-    PingServiceClient::new(Default::default(), transport)
-        .spawn()
-        .ping(lrcall::context::current())
-        .await?;
+    PingServiceClient::new(Default::default(), transport).spawn().ping(lrcall::context::current()).await?;
 
     Ok(())
 }

@@ -1,5 +1,4 @@
-// Modifications Copyright Andeya Lee 2024
-// Based on original source code from Google LLC licensed under MIT
+// Copyright 2018 Google LLC
 //
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file or at
@@ -15,17 +14,11 @@ extern crate syn;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, ToTokens};
-use syn::{
-    braced,
-    ext::IdentExt,
-    parenthesized,
-    parse::{Parse, ParseStream},
-    parse_macro_input, parse_quote,
-    spanned::Spanned,
-    token::Comma,
-    AttrStyle, Attribute, Expr, FnArg, Ident, Lit, LitBool, MetaNameValue, Pat, PatType, Path,
-    ReturnType, Token, Type, Visibility,
-};
+use syn::ext::IdentExt;
+use syn::parse::{Parse, ParseStream};
+use syn::spanned::Spanned;
+use syn::token::Comma;
+use syn::{braced, parenthesized, parse_macro_input, parse_quote, AttrStyle, Attribute, Expr, FnArg, Ident, Lit, LitBool, MetaNameValue, Pat, PatType, Path, ReturnType, Token, Type, Visibility};
 
 /// Accumulates multiple errors into a result.
 /// Only use this for recoverable errors, i.e. non-parse errors. Fatal errors should early exit to
@@ -70,33 +63,16 @@ impl Parse for Service {
             if rpc.ident == "new" {
                 extend_errors!(
                     ident_errors,
-                    syn::Error::new(
-                        rpc.ident.span(),
-                        format!(
-                            "method name conflicts with generated fn `{}Client::new`",
-                            ident.unraw()
-                        )
-                    )
+                    syn::Error::new(rpc.ident.span(), format!("method name conflicts with generated fn `{}Client::new`", ident.unraw()))
                 );
             }
             if rpc.ident == "serve" {
-                extend_errors!(
-                    ident_errors,
-                    syn::Error::new(
-                        rpc.ident.span(),
-                        format!("method name conflicts with generated fn `{ident}::serve`")
-                    )
-                );
+                extend_errors!(ident_errors, syn::Error::new(rpc.ident.span(), format!("method name conflicts with generated fn `{ident}::serve`")));
             }
         }
         ident_errors?;
 
-        Ok(Self {
-            attrs,
-            vis,
-            ident,
-            rpcs,
-        })
+        Ok(Self { attrs, vis, ident, rpcs })
     }
 }
 
@@ -114,31 +90,20 @@ impl Parse for RpcMethod {
             match arg {
                 FnArg::Typed(captured) if matches!(&*captured.pat, Pat::Ident(_)) => {
                     args.push(captured);
-                }
+                },
                 FnArg::Typed(captured) => {
-                    extend_errors!(
-                        errors,
-                        syn::Error::new(captured.pat.span(), "patterns aren't allowed in RPC args")
-                    );
-                }
+                    extend_errors!(errors, syn::Error::new(captured.pat.span(), "patterns aren't allowed in RPC args"));
+                },
                 FnArg::Receiver(_) => {
-                    extend_errors!(
-                        errors,
-                        syn::Error::new(arg.span(), "method args cannot start with self")
-                    );
-                }
+                    extend_errors!(errors, syn::Error::new(arg.span(), "method args cannot start with self"));
+                },
             }
         }
         errors?;
         let output = input.parse()?;
         input.parse::<Token![;]>()?;
 
-        Ok(Self {
-            attrs,
-            ident,
-            args,
-            output,
-        })
+        Ok(Self { attrs, ident, args, output })
     }
 }
 
@@ -176,26 +141,14 @@ impl Parse for DeriveMeta {
         let meta_items = input.parse_terminated(MetaNameValue::parse, Comma)?;
         for meta in meta_items {
             if meta.path.segments.len() != 1 {
-                extend_errors!(
-                    result,
-                    syn::Error::new(
-                        meta.span(),
-                        "lrcall::service does not support this meta item"
-                    )
-                );
+                extend_errors!(result, syn::Error::new(meta.span(), "lrcall::service does not support this meta item"));
                 continue;
             }
             let segment = meta.path.segments.first().unwrap();
             if segment.ident == "derive" {
                 has_explicit_derives = true;
                 let Expr::Array(ref array) = meta.value else {
-                    extend_errors!(
-                        result,
-                        syn::Error::new(
-                            meta.span(),
-                            "lrcall::service does not support this meta item"
-                        )
-                    );
+                    extend_errors!(result, syn::Error::new(meta.span(), "lrcall::service does not support this meta item"));
                     continue;
                 };
 
@@ -206,10 +159,7 @@ impl Parse for DeriveMeta {
                         if let Expr::Path(path) = e {
                             Some(path.path.clone())
                         } else {
-                            extend_errors!(
-                                result,
-                                syn::Error::new(e.span(), "Expected Path or Type")
-                            );
+                            extend_errors!(result, syn::Error::new(e.span(), "Expected Path or Type"));
                             None
                         }
                     })
@@ -220,10 +170,7 @@ impl Parse for DeriveMeta {
             } else if segment.ident == "derive_serde" {
                 has_derive_serde = true;
                 let Expr::Lit(expr_lit) = &meta.value else {
-                    extend_errors!(
-                        result,
-                        syn::Error::new(meta.value.span(), "expected literal")
-                    );
+                    extend_errors!(result, syn::Error::new(meta.value.span(), "expected literal"));
                     continue;
                 };
                 match expr_lit.lit {
@@ -232,39 +179,21 @@ impl Parse for DeriveMeta {
                             derive: Some(Derive::Serde(true)),
                             ..d
                         })
-                    }
+                    },
                     Lit::Bool(LitBool { value: true, .. }) => {
-                        extend_errors!(
-                            result,
-                            syn::Error::new(
-                                meta.span(),
-                                "To enable serde, first enable the `serde1` feature of lrcall"
-                            )
-                        );
-                    }
+                        extend_errors!(result, syn::Error::new(meta.span(), "To enable serde, first enable the `serde1` feature of lrcall"));
+                    },
                     Lit::Bool(LitBool { value: false, .. }) => {
                         result = result.map(|d| DeriveMeta {
                             derive: Some(Derive::Serde(false)),
                             ..d
                         })
-                    }
-                    _ => extend_errors!(
-                        result,
-                        syn::Error::new(
-                            expr_lit.lit.span(),
-                            "`derive_serde` expects a value of type `bool`"
-                        )
-                    ),
+                    },
+                    _ => extend_errors!(result, syn::Error::new(expr_lit.lit.span(), "`derive_serde` expects a value of type `bool`")),
                 }
                 derive_serde.push(meta);
             } else {
-                extend_errors!(
-                    result,
-                    syn::Error::new(
-                        meta.span(),
-                        "lrcall::service does not support this meta item"
-                    )
-                );
+                extend_errors!(result, syn::Error::new(meta.span(), "lrcall::service does not support this meta item"));
                 continue;
             }
         }
@@ -288,39 +217,18 @@ impl Parse for DeriveMeta {
         }
 
         if has_explicit_derives & has_derive_serde {
-            extend_errors!(
-                result,
-                syn::Error::new(
-                    input.span(),
-                    "lrcall does not support `derive_serde` and `derive` at the same time"
-                )
-            );
+            extend_errors!(result, syn::Error::new(input.span(), "lrcall does not support `derive_serde` and `derive` at the same time"));
         }
 
         if derive_serde.len() > 1 {
             for (i, derive_serde) in derive_serde.iter().enumerate() {
-                extend_errors!(
-                    result,
-                    syn::Error::new(
-                        derive_serde.span(),
-                        format!(
-                            "`derive_serde` appears more than once (occurrence #{})",
-                            i + 1
-                        )
-                    )
-                );
+                extend_errors!(result, syn::Error::new(derive_serde.span(), format!("`derive_serde` appears more than once (occurrence #{})", i + 1)));
             }
         }
 
         if derives.len() > 1 {
             for (i, derive) in derives.iter().enumerate() {
-                extend_errors!(
-                    result,
-                    syn::Error::new(
-                        derive.span(),
-                        format!("`derive` appears more than once (occurrence #{})", i + 1)
-                    )
-                );
+                extend_errors!(result, syn::Error::new(derive.span(), format!("`derive` appears more than once (occurrence #{})", i + 1)));
             }
         }
 
@@ -356,9 +264,7 @@ fn collect_cfg_attrs(rpcs: &[RpcMethod]) -> Vec<Vec<&Attribute>> {
                 .filter(|att| {
                     att.style == AttrStyle::Outer
                         && match &att.meta {
-                            syn::Meta::List(syn::MetaList { path, .. }) => {
-                                path.get_ident() == Some(&Ident::new("cfg", rpc.ident.span()))
-                            }
+                            syn::Meta::List(syn::MetaList { path, .. }) => path.get_ident() == Some(&Ident::new("cfg", rpc.ident.span())),
                             _ => false,
                         }
                 })
@@ -423,10 +329,7 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
         ref rpcs,
     } = parse_macro_input!(input as Service);
 
-    let camel_case_fn_names: &Vec<_> = &rpcs
-        .iter()
-        .map(|rpc| snake_to_camel(&rpc.ident.unraw().to_string()))
-        .collect();
+    let camel_case_fn_names: &Vec<_> = &rpcs.iter().map(|rpc| snake_to_camel(&rpc.ident.unraw().to_string())).collect();
     let args: &[&[PatType]] = &rpcs.iter().map(|rpc| &*rpc.args).collect::<Vec<_>>();
 
     let derives = match derive_meta.derive.as_ref() {
@@ -442,7 +345,7 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
             } else {
                 None
             }
-        }
+        },
         Some(Derive::Serde(serde)) => {
             if *serde {
                 Some(quote! {
@@ -452,7 +355,7 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
             } else {
                 None
             }
-        }
+        },
         None => {
             if cfg!(feature = "serde1") {
                 Some(quote! {
@@ -462,14 +365,11 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
             } else {
                 None
             }
-        }
+        },
     };
 
     let methods = rpcs.iter().map(|rpc| &rpc.ident).collect::<Vec<_>>();
-    let request_names = methods
-        .iter()
-        .map(|m| format!("{ident}.{m}"))
-        .collect::<Vec<_>>();
+    let request_names = methods.iter().map(|m| format!("{ident}.{m}")).collect::<Vec<_>>();
 
     ServiceGenerator {
         service_ident: ident,
@@ -493,15 +393,8 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
                 ReturnType::Default => unit_type,
             })
             .collect::<Vec<_>>(),
-        arg_pats: &args
-            .iter()
-            .map(|args| args.iter().map(|arg| &*arg.pat).collect())
-            .collect::<Vec<_>>(),
-        camel_case_idents: &rpcs
-            .iter()
-            .zip(camel_case_fn_names.iter())
-            .map(|(rpc, name)| Ident::new(name, rpc.ident.span()))
-            .collect::<Vec<_>>(),
+        arg_pats: &args.iter().map(|args| args.iter().map(|arg| &*arg.pat).collect()).collect::<Vec<_>>(),
+        camel_case_idents: &rpcs.iter().zip(camel_case_fn_names.iter()).map(|(rpc, name)| Ident::new(name, rpc.ident.span())).collect::<Vec<_>>(),
         derives: derives.as_ref(),
         warnings: &derive_meta.warnings,
     }
@@ -548,22 +441,12 @@ impl<'a> ServiceGenerator<'a> {
             ..
         } = self;
 
-        let rpc_fns = rpcs
-            .iter()
-            .zip(return_types.iter())
-            .map(
-                |(
-                     RpcMethod {
-                         attrs, ident, args, ..
-                     },
-                     output,
-                 )| {
-                    quote! {
-                        #( #attrs )*
-                        async fn #ident(self, context: ::lrcall::context::Context, #( #args ),*) -> #output;
-                    }
-                },
-            );
+        let rpc_fns = rpcs.iter().zip(return_types.iter()).map(|(RpcMethod { attrs, ident, args, .. }, output)| {
+            quote! {
+                #( #attrs )*
+                async fn #ident(self, context: ::lrcall::context::Context, #( #args ),*) -> #output;
+            }
+        });
 
         let stub_doc = format!("The stub trait for service [`{service_ident}`].");
         quote! {
@@ -590,9 +473,7 @@ impl<'a> ServiceGenerator<'a> {
     }
 
     fn struct_server(&self) -> TokenStream2 {
-        let &Self {
-            vis, server_ident, ..
-        } = self;
+        let &Self { vis, server_ident, .. } = self;
 
         quote! {
             /// A serving function to use with [::lrcall::server::InFlightRequest::execute].
@@ -835,7 +716,7 @@ fn snake_to_camel(ident_str: &str) -> String {
             c if last_char_was_underscore => {
                 camel_ty.extend(c.to_uppercase());
                 last_char_was_underscore = false;
-            }
+            },
             c => camel_ty.extend(c.to_lowercase()),
         }
     }

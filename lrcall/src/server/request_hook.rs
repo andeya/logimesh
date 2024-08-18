@@ -18,14 +18,9 @@ mod after;
 /// A request hook that runs both before a request is executed and after it is completed.
 mod before_and_after;
 
-pub use {
-    after::{AfterRequest, ServeThenHook},
-    before::{
-        before, BeforeRequest, BeforeRequestCons, BeforeRequestList, BeforeRequestNil,
-        HookThenServe,
-    },
-    before_and_after::HookThenServeThenHook,
-};
+pub use after::{AfterRequest, ServeThenHook};
+pub use before::{before, BeforeRequest, BeforeRequestCons, BeforeRequestList, BeforeRequestNil, HookThenServe};
+pub use before_and_after::HookThenServeThenHook;
 
 /// Hooks that run before and/or after serving a request.
 pub trait RequestHook: Serve {
@@ -156,10 +151,7 @@ pub trait RequestHook: Serve {
     /// let response = serve.serve(context::current(), 1);
     /// assert!(block_on(response).is_ok());
     /// ```
-    fn before_and_after<Hook>(
-        self,
-        hook: Hook,
-    ) -> HookThenServeThenHook<Self::Req, Self::Resp, Self, Hook>
+    fn before_and_after<Hook>(self, hook: Hook) -> HookThenServeThenHook<Self::Req, Self::Resp, Self, Hook>
     where
         Hook: BeforeRequest<Self::Req> + AfterRequest<Self::Resp>,
         Self: Sized,

@@ -1,9 +1,9 @@
-use super::{
-    limits::{channels_per_key::MaxChannelsPerKey, requests_per_channel::MaxRequestsPerChannel},
-    Channel, RequestName, Serve,
-};
+use super::limits::channels_per_key::MaxChannelsPerKey;
+use super::limits::requests_per_channel::MaxRequestsPerChannel;
+use super::{Channel, RequestName, Serve};
 use futures::prelude::*;
-use std::{fmt, hash::Hash};
+use std::fmt;
+use std::hash::Hash;
 
 /// An extension trait for [streams](futures::prelude::Stream) of [`Channels`](Channel).
 pub trait Incoming<C>
@@ -27,10 +27,7 @@ where
 
     /// Returns a stream of channels in execution. Each channel in execution is a stream of
     /// futures, where each future is an in-flight request being rsponded to.
-    fn execute<S>(
-        self,
-        serve: S,
-    ) -> impl Stream<Item = impl Stream<Item = impl Future<Output = ()>>>
+    fn execute<S>(self, serve: S) -> impl Stream<Item = impl Stream<Item = impl Future<Output = ()>>>
     where
         C::Req: RequestName,
         S: Serve<Req = C::Req, Resp = C::Resp> + Clone,
@@ -68,11 +65,7 @@ where
 ///     assert_eq!(client.call(context::current(), 1).await.unwrap(), 2);
 /// }
 /// ```
-pub async fn spawn_incoming(
-    incoming: impl Stream<
-        Item = impl Stream<Item = impl Future<Output = ()> + Send + 'static> + Send + 'static,
-    >,
-) {
+pub async fn spawn_incoming(incoming: impl Stream<Item = impl Stream<Item = impl Future<Output = ()> + Send + 'static> + Send + 'static>) {
     use futures::pin_mut;
     pin_mut!(incoming);
     while let Some(channel) = incoming.next().await {

@@ -6,21 +6,17 @@
 // https://opensource.org/licenses/MIT.
 
 use clap::Parser;
-use futures::{future, prelude::*};
-use rand::{
-    distributions::{Distribution, Uniform},
-    thread_rng,
-};
+use futures::future;
+use futures::prelude::*;
+use lrcall::context;
+use lrcall::server::incoming::Incoming;
+use lrcall::server::{self, Channel};
+use lrcall::tokio_serde::formats::Json;
+use rand::distributions::{Distribution, Uniform};
+use rand::thread_rng;
 use service::{init_tracing, World};
-use std::{
-    net::{IpAddr, Ipv6Addr, SocketAddr},
-    time::Duration,
-};
-use lrcall::{
-    context,
-    server::{self, incoming::Incoming, Channel},
-    tokio_serde::formats::Json,
-};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
+use std::time::Duration;
 use tokio::time;
 
 #[derive(Parser)]
@@ -37,8 +33,7 @@ struct HelloServer(SocketAddr);
 
 impl World for HelloServer {
     async fn hello(self, _: context::Context, name: String) -> String {
-        let sleep_time =
-            Duration::from_millis(Uniform::new_inclusive(1, 10).sample(&mut thread_rng()));
+        let sleep_time = Duration::from_millis(Uniform::new_inclusive(1, 10).sample(&mut thread_rng()));
         time::sleep(sleep_time).await;
         format!("Hello, {name}! You are connected from {}", self.0)
     }

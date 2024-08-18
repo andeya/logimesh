@@ -11,10 +11,8 @@
 use crate::trace::{self, TraceId};
 use opentelemetry::trace::TraceContextExt;
 use static_assertions::assert_impl_all;
-use std::{
-    convert::TryFrom,
-    time::{Duration, Instant},
-};
+use std::convert::TryFrom;
+use std::time::{Duration, Instant};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// A request context that carries request-scoped information like deadlines and trace information.
@@ -78,8 +76,7 @@ mod absolute_to_relative_time {
     fn test_deserialize() {
         let deadline = Duration::from_secs(10);
         let serialized_deadline = bincode::serialize(&deadline).unwrap();
-        let AbsoluteToRelative(deserialized_deadline) =
-            bincode::deserialize(&serialized_deadline).unwrap();
+        let AbsoluteToRelative(deserialized_deadline) = bincode::deserialize(&serialized_deadline).unwrap();
         // TODO: how to avoid flakiness?
         assert!(deserialized_deadline > Instant::now() + Duration::from_secs(9));
     }
@@ -110,14 +107,8 @@ impl Context {
     pub fn current() -> Self {
         let span = tracing::Span::current();
         Self {
-            trace_context: trace::Context::try_from(&span)
-                .unwrap_or_else(|_| trace::Context::default()),
-            deadline: span
-                .context()
-                .get::<Deadline>()
-                .cloned()
-                .unwrap_or_default()
-                .0,
+            trace_context: trace::Context::try_from(&span).unwrap_or_else(|_| trace::Context::default()),
+            deadline: span.context().get::<Deadline>().cloned().unwrap_or_default().0,
         }
     }
 

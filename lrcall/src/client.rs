@@ -10,26 +10,22 @@
 mod in_flight_requests;
 pub mod stub;
 
-use crate::{
-    cancellations::{cancellations, CanceledRequests, RequestCancellation},
-    context, trace,
-    util::TimeUntil,
-    ChannelError, ClientMessage, Request, RequestName, Response, ServerError, Transport,
-};
-use futures::{prelude::*, ready, stream::Fuse, task::*};
+use crate::cancellations::{cancellations, CanceledRequests, RequestCancellation};
+use crate::util::TimeUntil;
+use crate::{context, trace, ChannelError, ClientMessage, Request, RequestName, Response, ServerError, Transport};
+use futures::prelude::*;
+use futures::ready;
+use futures::stream::Fuse;
+use futures::task::*;
 use in_flight_requests::InFlightRequests;
 use pin_project::pin_project;
-use std::{
-    any::Any,
-    convert::TryFrom,
-    fmt,
-    pin::Pin,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    time::SystemTime,
-};
+use std::any::Any;
+use std::convert::TryFrom;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::SystemTime;
 use tokio::sync::{mpsc, oneshot};
 use tracing::Span;
 
@@ -89,10 +85,7 @@ impl<C, D> fmt::Debug for NewClient<C, D> {
     }
 }
 
-const _CHECK_USIZE: () = assert!(
-    std::mem::size_of::<usize>() <= std::mem::size_of::<u64>(),
-    "usize is too big to fit in u64"
-);
+const _CHECK_USIZE: () = assert!(std::mem::size_of::<usize>() <= std::mem::size_of::<u64>(), "usize is too big to fit in u64");
 
 /// Handles communication from the client to request dispatch.
 #[derive(Debug)]
@@ -132,15 +125,12 @@ where
     pub async fn call(&self, mut ctx: context::Context, request: Req) -> Result<Resp, RpcError> {
         let span = Span::current();
         ctx.trace_context = trace::Context::try_from(&span).unwrap_or_else(|_| {
-            tracing::trace!(
-                "OpenTelemetry subscriber not installed; making unsampled child context."
-            );
+            tracing::trace!("OpenTelemetry subscriber not installed; making unsampled child context.");
             ctx.trace_context.new_child()
         });
         span.record("rpc.trace_id", tracing::field::display(ctx.trace_id()));
         let (response_completion, mut response) = oneshot::channel();
-        let request_id =
-            u64::try_from(self.next_request_id.fetch_add(1, Ordering::Relaxed)).unwrap();
+        let request_id = u64::try_from(self.next_request_id.fetch_add(1, Ordering::Relaxed)).unwrap();
 
         // ResponseGuard impls Drop to cancel in-flight requests. It should be created before
         // sending out the request; otherwise, the response future could be dropped after the
@@ -208,7 +198,7 @@ impl<Resp> ResponseGuard<'_, Resp> {
                 // there's nothing listening on the other side, so there's no point in
                 // propagating cancellation.
                 Err(RpcError::Shutdown)
-            }
+            },
         }
     }
 }
@@ -235,10 +225,7 @@ impl<Resp> Drop for ResponseGuard<'_, Resp> {
 
 /// Returns a channel and dispatcher that manages the lifecycle of requests initiated by the
 /// channel.
-pub fn new<Req, Resp, C>(
-    config: Config,
-    transport: C,
-) -> NewClient<Channel<Req, Resp>, RequestDispatch<Req, Resp, C>>
+pub fn new<Req, Resp, C>(config: Config, transport: C) -> NewClient<Channel<Req, Resp>, RequestDispatch<Req, Resp, C>>
 where
     C: Transport<ClientMessage<Req>, Response<Resp>>,
 {
@@ -290,9 +277,7 @@ impl<Req, Resp, C> RequestDispatch<Req, Resp, C>
 where
     C: Transport<ClientMessage<Req>, Response<Resp>>,
 {
-    fn in_flight_requests<'a>(
-        self: &'a mut Pin<&mut Self>,
-    ) -> &'a mut InFlightRequests<Result<Resp, RpcError>> {
+    fn in_flight_requests<'a>(self: &'a mut Pin<&mut Self>) -> &'a mut InFlightRequests<Result<Resp, RpcError>> {
         self.as_mut().project().in_flight_requests
     }
 
@@ -300,69 +285,41 @@ where
         self.as_mut().project().transport
     }
 
-    fn poll_ready<'a>(
-        self: &'a mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), ChannelError<C::Error>>> {
-        self.transport_pin_mut()
-            .poll_ready(cx)
-            .map_err(|e| ChannelError::Ready(Arc::new(e)))
+    fn poll_ready<'a>(self: &'a mut Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), ChannelError<C::Error>>> {
+        self.transport_pin_mut().poll_ready(cx).map_err(|e| ChannelError::Ready(Arc::new(e)))
     }
 
     fn start_send(self: &mut Pin<&mut Self>, message: ClientMessage<Req>) -> Result<(), C::Error> {
         self.transport_pin_mut().start_send(message)
     }
 
-    fn poll_flush<'a>(
-        self: &'a mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), ChannelError<C::Error>>> {
-        self.transport_pin_mut()
-            .poll_flush(cx)
-            .map_err(|e| ChannelError::Flush(Arc::new(e)))
+    fn poll_flush<'a>(self: &'a mut Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), ChannelError<C::Error>>> {
+        self.transport_pin_mut().poll_flush(cx).map_err(|e| ChannelError::Flush(Arc::new(e)))
     }
 
-    fn poll_close<'a>(
-        self: &'a mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), ChannelError<C::Error>>> {
-        self.transport_pin_mut()
-            .poll_close(cx)
-            .map_err(|e| ChannelError::Close(Arc::new(e)))
+    fn poll_close<'a>(self: &'a mut Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), ChannelError<C::Error>>> {
+        self.transport_pin_mut().poll_close(cx).map_err(|e| ChannelError::Close(Arc::new(e)))
     }
 
     fn canceled_requests_mut<'a>(self: &'a mut Pin<&mut Self>) -> &'a mut CanceledRequests {
         self.as_mut().project().canceled_requests
     }
 
-    fn pending_requests_mut<'a>(
-        self: &'a mut Pin<&mut Self>,
-    ) -> &'a mut mpsc::Receiver<DispatchRequest<Req, Resp>> {
+    fn pending_requests_mut<'a>(self: &'a mut Pin<&mut Self>) -> &'a mut mpsc::Receiver<DispatchRequest<Req, Resp>> {
         self.as_mut().project().pending_requests
     }
 
-    fn terminal_error_mut<'a>(
-        self: &'a mut Pin<&mut Self>,
-    ) -> &'a mut Option<ChannelError<dyn Any + Send + Sync + 'static>> {
+    fn terminal_error_mut<'a>(self: &'a mut Pin<&mut Self>) -> &'a mut Option<ChannelError<dyn Any + Send + Sync + 'static>> {
         self.as_mut().project().terminal_error
     }
 
-    fn pump_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
-        self.transport_pin_mut()
-            .poll_next(cx)
-            .map_err(|e| ChannelError::Read(Arc::new(e)))
-            .map_ok(|response| {
-                self.complete(response);
-            })
+    fn pump_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
+        self.transport_pin_mut().poll_next(cx).map_err(|e| ChannelError::Read(Arc::new(e))).map_ok(|response| {
+            self.complete(response);
+        })
     }
 
-    fn pump_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
+    fn pump_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
         enum ReceiverStatus {
             Pending,
             Closed,
@@ -383,10 +340,7 @@ where
         // Receiving Poll::Ready(None) when polling expired requests never indicates "Closed",
         // because there can temporarily be zero in-flight rquests. Therefore, there is no need to
         // track the status like is done with pending and cancelled requests.
-        if let Poll::Ready(Some(_)) = self
-            .in_flight_requests()
-            .poll_expired(cx, || Err(RpcError::DeadlineExceeded))
-        {
+        if let Poll::Ready(Some(_)) = self.in_flight_requests().poll_expired(cx, || Err(RpcError::DeadlineExceeded)) {
             // Expired requests are considered complete; there is no compelling reason to send a
             // cancellation message to the server, since it will have already exhausted its
             // allotted processing time.
@@ -397,7 +351,7 @@ where
             (ReceiverStatus::Closed, ReceiverStatus::Closed) => {
                 ready!(self.poll_close(cx)?);
                 Poll::Ready(None)
-            }
+            },
             (ReceiverStatus::Pending, _) | (_, ReceiverStatus::Pending) => {
                 // No more messages to process, so flush any messages buffered in the transport.
                 ready!(self.poll_flush(cx)?);
@@ -405,7 +359,7 @@ where
                 // Even if we fully-flush, we return Pending, because we have no more requests
                 // or cancellations right now.
                 Poll::Pending
-            }
+            },
         }
     }
 
@@ -415,16 +369,9 @@ where
     /// start_send would succeed).
     ///
     /// Side effect: will flush the transport if it is full.
-    fn poll_next_request(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<DispatchRequest<Req, Resp>, ChannelError<C::Error>>>> {
+    fn poll_next_request(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<DispatchRequest<Req, Resp>, ChannelError<C::Error>>>> {
         if self.in_flight_requests().len() >= self.config.max_in_flight_requests {
-            tracing::info!(
-                "At in-flight request capacity ({}/{}).",
-                self.in_flight_requests().len(),
-                self.config.max_in_flight_requests
-            );
+            tracing::info!("At in-flight request capacity ({}/{}).", self.in_flight_requests().len(), self.config.max_in_flight_requests);
 
             // No need to schedule a wakeup, because timers and responses are responsible
             // for clearing out in-flight requests.
@@ -443,7 +390,7 @@ where
                     }
 
                     return Poll::Ready(Some(Ok(request)));
-                }
+                },
                 None => return Poll::Ready(None),
             }
         }
@@ -455,20 +402,16 @@ where
     /// written to (i.e. start_send would succeed).
     ///
     /// Side effect: will flush the transport if it is full.
-    fn poll_next_cancellation(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(context::Context, Span, u64), ChannelError<C::Error>>>> {
+    fn poll_next_cancellation(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<(context::Context, Span, u64), ChannelError<C::Error>>>> {
         ready!(self.ensure_writeable(cx)?);
 
         loop {
             match ready!(self.canceled_requests_mut().poll_next_unpin(cx)) {
                 Some(request_id) => {
-                    if let Some((ctx, span)) = self.in_flight_requests().cancel_request(request_id)
-                    {
+                    if let Some((ctx, span)) = self.in_flight_requests().cancel_request(request_id) {
                         return Poll::Ready(Some(Ok((ctx, span, request_id))));
                     }
-                }
+                },
                 None => return Poll::Ready(None),
             }
         }
@@ -477,10 +420,7 @@ where
     /// Returns Ready if writing a message to the transport (i.e. via write_request or
     /// write_cancel) would not fail due to a full buffer. If the transport is not ready to be
     /// written to, flushes it until it is ready.
-    fn ensure_writeable<'a>(
-        self: &'a mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
+    fn ensure_writeable<'a>(self: &'a mut Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
         while self.poll_ready(cx)?.is_pending() {
             ready!(self.poll_flush(cx)?);
         }
@@ -493,10 +433,7 @@ where
     /// start_send would succeed).
     ///
     /// Side effect: will flush the transport if it is full.
-    fn poll_write_request<'a>(
-        self: &'a mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
+    fn poll_write_request<'a>(self: &'a mut Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
         let DispatchRequest {
             ctx,
             span,
@@ -525,9 +462,8 @@ where
         match self.start_send(request) {
             Ok(()) => tracing::info!("SendRequest"),
             Err(e) => {
-                self.in_flight_requests()
-                    .complete_request(request_id, Err(RpcError::Send(Box::new(e))));
-            }
+                self.in_flight_requests().complete_request(request_id, Err(RpcError::Send(Box::new(e))));
+            },
         }
         Poll::Ready(Some(Ok(())))
     }
@@ -538,10 +474,7 @@ where
     /// start_send would succeed).
     ///
     /// Side effect: will flush the transport if it is full.
-    fn poll_write_cancel<'a>(
-        self: &'a mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
+    fn poll_write_cancel<'a>(self: &'a mut Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<(), ChannelError<C::Error>>>> {
         let (context, span, request_id) = match ready!(self.as_mut().poll_next_cancellation(cx)?) {
             Some(triple) => triple,
             None => return Poll::Ready(None),
@@ -552,18 +485,14 @@ where
             trace_context: context.trace_context,
             request_id,
         };
-        self.start_send(cancel)
-            .map_err(|e| ChannelError::Write(Arc::new(e)))?;
+        self.start_send(cancel).map_err(|e| ChannelError::Write(Arc::new(e)))?;
         tracing::info!("CancelRequest");
         Poll::Ready(Some(Ok(())))
     }
 
     /// Sends a server response to the client task that initiated the associated request.
     fn complete(mut self: Pin<&mut Self>, response: Response<Resp>) -> bool {
-        if let Some(span) = self.in_flight_requests().complete_request(
-            response.request_id,
-            response.message.map_err(RpcError::Server),
-        ) {
+        if let Some(span) = self.in_flight_requests().complete_request(response.request_id, response.message.map_err(RpcError::Server)) {
             let _entered = span.enter();
             tracing::info!("ReceiveResponse");
             return true;
@@ -573,26 +502,15 @@ where
 
     /// Closes the pending requests channel and completes all pending and in-flight requests with
     /// the given error.
-    fn shut_down_with_terminal_error(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        e: ChannelError<dyn std::error::Error + Send + Sync + 'static>,
-    ) -> Poll<()> {
+    fn shut_down_with_terminal_error(mut self: Pin<&mut Self>, cx: &mut Context<'_>, e: ChannelError<dyn std::error::Error + Send + Sync + 'static>) -> Poll<()> {
         self.pending_requests_mut().close();
-        for span in self
-            .in_flight_requests()
-            .complete_all_requests(|| Err(RpcError::Channel(e.clone())))
-        {
+        for span in self.in_flight_requests().complete_all_requests(|| Err(RpcError::Channel(e.clone()))) {
             let _entered = span.enter();
             tracing::warn!("RpcError::Channel");
         }
         loop {
             match ready!(self.pending_requests_mut().poll_recv(cx)) {
-                Some(DispatchRequest {
-                    span,
-                    response_completion,
-                    ..
-                }) => {
+                Some(DispatchRequest { span, response_completion, .. }) => {
                     let _entered = span.enter();
                     if response_completion.is_closed() {
                         tracing::info!("AbortRequest");
@@ -600,37 +518,31 @@ where
                         tracing::warn!("RpcError::Channel");
                         let _ = response_completion.send(Err(RpcError::Channel(e.clone())));
                     }
-                }
+                },
                 None => return Poll::Ready(()),
             }
         }
     }
 
-    fn run<'a>(
-        self: &'a mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), ChannelError<C::Error>>> {
+    fn run<'a>(self: &'a mut Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), ChannelError<C::Error>>> {
         loop {
             match (self.as_mut().pump_read(cx)?, self.as_mut().pump_write(cx)?) {
                 (Poll::Ready(None), _) => {
                     tracing::info!("Shutdown: read half closed, so shutting down.");
                     return Poll::Ready(Ok(()));
-                }
+                },
                 (read, Poll::Ready(None)) => {
                     if self.in_flight_requests.is_empty() {
                         tracing::info!("Shutdown: write half closed, and no requests in flight.");
                         return Poll::Ready(Ok(()));
                     }
-                    tracing::info!(
-                        "Shutdown: write half closed, and {} requests in flight.",
-                        self.in_flight_requests().len()
-                    );
+                    tracing::info!("Shutdown: write half closed, and {} requests in flight.", self.in_flight_requests().len());
                     match read {
                         Poll::Ready(Some(())) => continue,
                         _ => return Poll::Pending,
                     }
-                }
-                (Poll::Ready(Some(())), _) | (_, Poll::Ready(Some(()))) => {}
+                },
+                (Poll::Ready(Some(())), _) | (_, Poll::Ready(Some(()))) => {},
                 _ => return Poll::Pending,
             }
         }
@@ -643,17 +555,11 @@ where
 {
     type Output = Result<(), ChannelError<C::Error>>;
 
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), ChannelError<C::Error>>> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), ChannelError<C::Error>>> {
         loop {
             if let Some(e) = self.terminal_error_mut() {
                 tracing::info!("RpcError::Channel");
-                let e: ChannelError<C::Error> = e
-                    .clone()
-                    .downcast()
-                    .expect("Invariant: ChannelError must store a C::Error");
+                let e: ChannelError<C::Error> = e.clone().downcast().expect("Invariant: ChannelError must store a C::Error");
                 ready!(self.shut_down_with_terminal_error(cx, e.clone().upcast_error()));
                 return Poll::Ready(Err(e));
             }
@@ -679,32 +585,25 @@ struct DispatchRequest<Req, Resp> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        cancellations, Channel, DispatchRequest, RequestDispatch, ResponseGuard, RpcError,
-    };
-    use crate::{
-        client::{in_flight_requests::InFlightRequests, Config},
-        context::{self, current},
-        transport::{self, channel::UnboundedChannel},
-        ChannelError, ClientMessage, Response,
-    };
+    use super::{cancellations, Channel, DispatchRequest, RequestDispatch, ResponseGuard, RpcError};
+    use crate::client::in_flight_requests::InFlightRequests;
+    use crate::client::Config;
+    use crate::context::{self, current};
+    use crate::transport::channel::UnboundedChannel;
+    use crate::transport::{self};
+    use crate::{ChannelError, ClientMessage, Response};
     use assert_matches::assert_matches;
-    use futures::{prelude::*, task::*};
-    use std::{
-        convert::TryFrom,
-        fmt::Display,
-        marker::PhantomData,
-        pin::Pin,
-        sync::{
-            atomic::{AtomicUsize, Ordering},
-            Arc,
-        },
-    };
+    use futures::prelude::*;
+    use futures::task::*;
+    use std::convert::TryFrom;
+    use std::fmt::Display;
+    use std::marker::PhantomData;
+    use std::pin::Pin;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
     use thiserror::Error;
-    use tokio::sync::{
-        mpsc::{self},
-        oneshot,
-    };
+    use tokio::sync::mpsc::{self};
+    use tokio::sync::oneshot;
     use tracing::Span;
 
     #[tokio::test]
@@ -713,10 +612,7 @@ mod tests {
         let cx = &mut Context::from_waker(noop_waker_ref());
         let (tx, mut rx) = oneshot::channel();
 
-        dispatch
-            .in_flight_requests
-            .insert_request(0, context::current(), Span::current(), tx)
-            .unwrap();
+        dispatch.in_flight_requests.insert_request(0, context::current(), Span::current(), tx).unwrap();
         server_channel
             .send(Response {
                 request_id: 0,
@@ -837,10 +733,7 @@ mod tests {
         // Test that a request future dropped after it's processed by dispatch will cause the request
         // to be removed from the in-flight request map.
         drop(req);
-        assert_matches!(
-            dispatch.as_mut().poll_next_cancellation(cx),
-            Poll::Ready(Some(Ok(_)))
-        );
+        assert_matches!(dispatch.as_mut().poll_next_cancellation(cx), Poll::Ready(Some(Ok(_))));
         assert!(dispatch.in_flight_requests.is_empty());
     }
 
@@ -899,14 +792,8 @@ mod tests {
         let client_error: anyhow::Error = res.unwrap_err().into();
         let mut chain = client_error.chain();
         chain.next(); // original RpcError
-        assert_eq!(
-            chain.next().unwrap().downcast_ref::<TransportError>(),
-            Some(&cause)
-        );
-        assert_eq!(
-            client_error.root_cause().downcast_ref::<TransportError>(),
-            Some(&cause)
-        );
+        assert_eq!(chain.next().unwrap().downcast_ref::<TransportError>(), Some(&cause));
+        assert_eq!(client_error.root_cause().downcast_ref::<TransportError>(), Some(&cause));
     }
 
     #[tokio::test]
@@ -915,14 +802,8 @@ mod tests {
         let (mut dispatch, mut channel, mut cx) = set_up_always_err(cause);
         let (tx, mut rx) = oneshot::channel();
         let resp = send_request(&mut channel, "hi", tx, &mut rx).await;
-        assert_eq!(
-            dispatch.as_mut().pump_write(&mut cx),
-            Poll::Ready(Some(Ok(())))
-        );
-        assert_eq!(
-            dispatch.as_mut().poll(&mut cx),
-            Poll::Ready(Err(ChannelError::Read(Arc::new(cause))))
-        );
+        assert_eq!(dispatch.as_mut().pump_write(&mut cx), Poll::Ready(Some(Ok(()))));
+        assert_eq!(dispatch.as_mut().poll(&mut cx), Poll::Ready(Err(ChannelError::Read(Arc::new(cause)))));
         assert_matches!(resp.response().await, Err(RpcError::Channel(_)));
     }
 
@@ -930,20 +811,14 @@ mod tests {
     async fn test_transport_error_ready() {
         let cause = TransportError::Ready;
         let (mut dispatch, _, mut cx) = set_up_always_err(cause);
-        assert_eq!(
-            dispatch.as_mut().poll(&mut cx),
-            Poll::Ready(Err(ChannelError::Ready(Arc::new(cause))))
-        );
+        assert_eq!(dispatch.as_mut().poll(&mut cx), Poll::Ready(Err(ChannelError::Ready(Arc::new(cause)))));
     }
 
     #[tokio::test]
     async fn test_transport_error_flush() {
         let cause = TransportError::Flush;
         let (mut dispatch, _, mut cx) = set_up_always_err(cause);
-        assert_eq!(
-            dispatch.as_mut().poll(&mut cx),
-            Poll::Ready(Err(ChannelError::Flush(Arc::new(cause))))
-        );
+        assert_eq!(dispatch.as_mut().poll(&mut cx), Poll::Ready(Err(ChannelError::Flush(Arc::new(cause)))));
     }
 
     #[tokio::test]
@@ -951,20 +826,11 @@ mod tests {
         let cause = TransportError::Close;
         let (mut dispatch, channel, mut cx) = set_up_always_err(cause);
         drop(channel);
-        assert_eq!(
-            dispatch.as_mut().poll(&mut cx),
-            Poll::Ready(Err(ChannelError::Close(Arc::new(cause))))
-        );
+        assert_eq!(dispatch.as_mut().poll(&mut cx), Poll::Ready(Err(ChannelError::Close(Arc::new(cause)))));
     }
 
     /// Sets up a RequestDispatch with a transport that always errors.
-    fn set_up_always_err(
-        cause: TransportError,
-    ) -> (
-        Pin<Box<RequestDispatch<String, String, AlwaysErrorTransport<String>>>>,
-        Channel<String, String>,
-        Context<'static>,
-    ) {
+    fn set_up_always_err(cause: TransportError) -> (Pin<Box<RequestDispatch<String, String, AlwaysErrorTransport<String>>>>, Channel<String, String>, Context<'static>) {
         let (to_dispatch, pending_requests) = mpsc::channel(1);
         let (cancellation, canceled_requests) = cancellations();
         let transport: AlwaysErrorTransport<String> = AlwaysErrorTransport(cause, PhantomData);
@@ -1012,49 +878,25 @@ mod tests {
             }
         }
         fn start_send(self: Pin<&mut Self>, _: S) -> Result<(), Self::Error> {
-            if matches!(self.0, TransportError::Write) {
-                Err(self.0)
-            } else {
-                Ok(())
-            }
+            if matches!(self.0, TransportError::Write) { Err(self.0) } else { Ok(()) }
         }
         fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            if matches!(self.0, TransportError::Flush) {
-                Poll::Ready(Err(self.0))
-            } else {
-                Poll::Ready(Ok(()))
-            }
+            if matches!(self.0, TransportError::Flush) { Poll::Ready(Err(self.0)) } else { Poll::Ready(Ok(())) }
         }
         fn poll_close(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            if matches!(self.0, TransportError::Close) {
-                Poll::Ready(Err(self.0))
-            } else {
-                Poll::Ready(Ok(()))
-            }
+            if matches!(self.0, TransportError::Close) { Poll::Ready(Err(self.0)) } else { Poll::Ready(Ok(())) }
         }
     }
 
     impl<I: Clone> Stream for AlwaysErrorTransport<I> {
         type Item = Result<Response<I>, TransportError>;
         fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            if matches!(self.0, TransportError::Read) {
-                Poll::Ready(Some(Err(self.0)))
-            } else {
-                Poll::Pending
-            }
+            if matches!(self.0, TransportError::Read) { Poll::Ready(Some(Err(self.0))) } else { Poll::Pending }
         }
     }
 
     fn set_up() -> (
-        Pin<
-            Box<
-                RequestDispatch<
-                    String,
-                    String,
-                    UnboundedChannel<Response<String>, ClientMessage<String>>,
-                >,
-            >,
-        >,
+        Pin<Box<RequestDispatch<String, String, UnboundedChannel<Response<String>, ClientMessage<String>>>>>,
         Channel<String, String>,
         UnboundedChannel<ClientMessage<String>, Response<String>>,
     ) {
@@ -1089,8 +931,7 @@ mod tests {
     ) -> impl FnOnce(&str) -> ResponseGuard<'a, String> {
         let permit = channel.to_dispatch.reserve().await.unwrap();
         |request| {
-            let request_id =
-                u64::try_from(channel.next_request_id.fetch_add(1, Ordering::Relaxed)).unwrap();
+            let request_id = u64::try_from(channel.next_request_id.fetch_add(1, Ordering::Relaxed)).unwrap();
             let request = DispatchRequest {
                 ctx: context::current(),
                 span: Span::current(),
@@ -1114,8 +955,7 @@ mod tests {
         response_completion: oneshot::Sender<Result<String, RpcError>>,
         response: &'a mut oneshot::Receiver<Result<String, RpcError>>,
     ) -> ResponseGuard<'a, String> {
-        let request_id =
-            u64::try_from(channel.next_request_id.fetch_add(1, Ordering::Relaxed)).unwrap();
+        let request_id = u64::try_from(channel.next_request_id.fetch_add(1, Ordering::Relaxed)).unwrap();
         let request = DispatchRequest {
             ctx: context::current(),
             span: Span::current(),
@@ -1133,10 +973,7 @@ mod tests {
         response_guard
     }
 
-    async fn send_response(
-        channel: &mut UnboundedChannel<ClientMessage<String>, Response<String>>,
-        response: Response<String>,
-    ) {
+    async fn send_response(channel: &mut UnboundedChannel<ClientMessage<String>, Response<String>>, response: Response<String>) {
         channel.send(response).await.unwrap();
     }
 

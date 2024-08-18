@@ -1,9 +1,7 @@
 //! Provides a stub that retries requests based on response contents..
 
-use crate::{
-    client::{stub, RpcError},
-    context, RequestName,
-};
+use crate::client::{stub, RpcError};
+use crate::{context, RequestName};
 use std::sync::Arc;
 
 impl<Stub, Req, F> stub::Stub for Retry<F, Stub>
@@ -15,11 +13,7 @@ where
     type Req = Req;
     type Resp = Stub::Resp;
 
-    async fn call(
-        &self,
-        ctx: context::Context,
-        request: Self::Req,
-    ) -> Result<Stub::Resp, RpcError> {
+    async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Stub::Resp, RpcError> {
         let request = Arc::new(request);
         for i in 1.. {
             let result = self.stub.call(ctx, Arc::clone(&request)).await;

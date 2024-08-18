@@ -6,9 +6,11 @@
 // https://opensource.org/licenses/MIT.
 
 use clap::Parser;
+use lrcall::tokio_serde::formats::Json;
+use lrcall::{client, context};
 use service::{init_tracing, WorldClient};
-use std::{net::SocketAddr, time::Duration};
-use lrcall::{client, context, tokio_serde::formats::Json};
+use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::time::sleep;
 use tracing::Instrument;
 

@@ -23,7 +23,7 @@ impl World for HelloServer {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let local_service=HelloServer;
+    let local_service = HelloServer;
     let (client_transport, server_transport) = lrcall::transport::channel::unbounded();
 
     let server = server::BaseChannel::with_defaults(server_transport);

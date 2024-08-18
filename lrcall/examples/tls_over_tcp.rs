@@ -11,13 +11,10 @@ use std::io::{self, BufReader, Cursor};
 use std::net::{IpAddr, Ipv4Addr};
 
 use std::sync::Arc;
-use tokio::net::TcpListener;
-use tokio::net::TcpStream;
-use tokio_rustls::rustls::{
-    self,
-    server::{danger::ClientCertVerifier, WebPkiClientVerifier},
-    RootCertStore,
-};
+use tokio::net::{TcpListener, TcpStream};
+use tokio_rustls::rustls::server::danger::ClientCertVerifier;
+use tokio_rustls::rustls::server::WebPkiClientVerifier;
+use tokio_rustls::rustls::{self, RootCertStore};
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
 use lrcall::context::Context;
@@ -54,9 +51,7 @@ const END_PRIVATEKEY: &str = include_str!("certs/eddsa/end.key");
 const CLIENT_CHAIN_CLIENT_AUTH: &str = include_str!("certs/eddsa/client.chain");
 
 pub fn load_certs(data: &str) -> Vec<rustls::pki_types::CertificateDer<'static>> {
-    certs(&mut BufReader::new(Cursor::new(data)))
-        .map(|result| result.unwrap())
-        .collect()
+    certs(&mut BufReader::new(Cursor::new(data))).map(|result| result.unwrap()).collect()
 }
 
 pub fn load_private_key(key: &str) -> rustls::pki_types::PrivateKeyDer {
@@ -118,9 +113,7 @@ async fn main() -> anyhow::Result<()> {
 
             let transport = transport::new(framed, Bincode::default());
 
-            let fut = BaseChannel::with_defaults(transport)
-                .execute(Service.serve())
-                .for_each(spawn);
+            let fut = BaseChannel::with_defaults(transport).execute(Service.serve()).for_each(spawn);
             tokio::spawn(fut);
         }
     });
@@ -146,10 +139,7 @@ async fn main() -> anyhow::Result<()> {
     let stream = connector.connect(domain, stream).await?;
 
     let transport = transport::new(codec_builder.new_framed(stream), Bincode::default());
-    let answer = PingServiceClient::new(Default::default(), transport)
-        .spawn()
-        .ping(lrcall::context::current())
-        .await?;
+    let answer = PingServiceClient::new(Default::default(), transport).spawn().ping(lrcall::context::current()).await?;
 
     println!("ping answer: {answer}");
 

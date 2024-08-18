@@ -7,8 +7,8 @@
 
 //! Provides a [`Transport`](sealed::Transport) trait as well as implementations.
 //!
-//! The rpc crate is transport- and protocol-agnostic. Any transport that impls [`Transport`](sealed::Transport)
-//! can be plugged in, using whatever protocol it wants.
+//! The rpc crate is transport- and protocol-agnostic. Any transport that impls
+//! [`Transport`](sealed::Transport) can be plugged in, using whatever protocol it wants.
 
 pub mod channel;
 

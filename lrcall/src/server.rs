@@ -7,27 +7,27 @@
 
 //! Provides a server that concurrently handles many connections sending multiplexed requests.
 
-use crate::{
-    cancellations::{cancellations, CanceledRequests, RequestCancellation},
-    context::{self, SpanExt},
-    trace,
-    util::TimeUntil,
-    ChannelError, ClientMessage, Request, RequestName, Response, ServerError, Transport,
-};
+use crate::cancellations::{cancellations, CanceledRequests, RequestCancellation};
+use crate::context::{self, SpanExt};
+use crate::util::TimeUntil;
+use crate::{trace, ChannelError, ClientMessage, Request, RequestName, Response, ServerError, Transport};
 use ::tokio::sync::mpsc;
-use futures::{
-    future::{AbortRegistration, Abortable},
-    prelude::*,
-    ready,
-    stream::Fuse,
-    task::*,
-};
+use futures::future::{AbortRegistration, Abortable};
+use futures::prelude::*;
+use futures::ready;
+use futures::stream::Fuse;
+use futures::task::*;
 use in_flight_requests::{AlreadyExistsError, InFlightRequests};
 use pin_project::pin_project;
-use std::{
-    convert::TryFrom, error::Error, fmt, marker::PhantomData, pin::Pin, sync::Arc, time::SystemTime,
-};
-use tracing::{info_span, instrument::Instrument, Span};
+use std::convert::TryFrom;
+use std::error::Error;
+use std::fmt;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::SystemTime;
+use tracing::instrument::Instrument;
+use tracing::{info_span, Span};
 
 mod in_flight_requests;
 pub mod request_hook;
@@ -51,9 +51,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Config {
-            pending_response_buffer: 100,
-        }
+        Config { pending_response_buffer: 100 }
     }
 }
 
@@ -92,10 +90,7 @@ where
     F: Clone,
 {
     fn clone(&self) -> Self {
-        Self {
-            f: self.f.clone(),
-            data: PhantomData,
-        }
+        Self { f: self.f.clone(), data: PhantomData }
     }
 }
 
@@ -108,10 +103,7 @@ where
     F: FnOnce(context::Context, Req) -> Fut,
     Fut: Future<Output = Result<Resp, ServerError>>,
 {
-    ServeFn {
-        f,
-        data: PhantomData,
-    }
+    ServeFn { f, data: PhantomData }
 }
 
 impl<Req, Resp, Fut, F> Serve for ServeFn<Req, Resp, F>
@@ -191,9 +183,7 @@ where
         self.as_mut().project().in_flight_requests
     }
 
-    fn canceled_requests_pin_mut<'a>(
-        self: &'a mut Pin<&mut Self>,
-    ) -> Pin<&'a mut CanceledRequests> {
+    fn canceled_requests_pin_mut<'a>(self: &'a mut Pin<&mut Self>) -> Pin<&'a mut CanceledRequests> {
         self.as_mut().project().canceled_requests
     }
 
@@ -201,10 +191,7 @@ where
         self.as_mut().project().transport
     }
 
-    fn start_request(
-        mut self: Pin<&mut Self>,
-        mut request: Request<Req>,
-    ) -> Result<TrackedRequest<Req>, AlreadyExistsError> {
+    fn start_request(mut self: Pin<&mut Self>, mut request: Request<Req>) -> Result<TrackedRequest<Req>, AlreadyExistsError> {
         let span = info_span!(
             "RPC",
             rpc.trace_id = %request.context.trace_id(),
@@ -222,11 +209,7 @@ where
         });
         let entered = span.enter();
         tracing::info!("ReceiveRequest");
-        let start = self.in_flight_requests_mut().start_request(
-            request.id,
-            request.context.deadline,
-            span.clone(),
-        );
+        let start = self.in_flight_requests_mut().start_request(request.id, request.context.deadline, span.clone());
         match start {
             Ok(abort_registration) => {
                 drop(entered);
@@ -240,11 +223,11 @@ where
                     },
                     request,
                 })
-            }
+            },
             Err(AlreadyExistsError) => {
                 tracing::trace!("DuplicateRequest");
                 Err(AlreadyExistsError)
-            }
+            },
         }
     }
 }
@@ -273,23 +256,14 @@ pub struct TrackedRequest<Req> {
 /// responses to, the client. `Channel` is a [`Transport`] with request lifecycle management.
 ///
 /// The ways to use a Channel, in order of simplest to most complex, is:
-/// 1. [`Channel::execute`] - Requires the `tokio1` feature. This method is best for those who
-///    do not have specific scheduling needs and whose services are `Send + 'static`.
-/// 2. [`Channel::requests`] - This method is best for those who need direct access to individual
-///    requests, or are not using `tokio`, or want control over [futures](Future) scheduling.
-///    [`Requests`] is a stream of [`InFlightRequests`](InFlightRequest), each which has an
-///    [`execute`](InFlightRequest::execute) method. If using `execute`, request processing will
-///    automatically cease when either the request deadline is reached or when a corresponding
-///    cancellation message is received by the Channel.
-/// 3. [`Stream::next`](futures::stream::StreamExt::next) /
-///    [`Sink::send`](futures::sink::SinkExt::send) - A user is free to manually read requests
-///    from, and send responses into, a Channel in lieu of the previous methods. Channels stream
-///    [`TrackedRequests`](TrackedRequest), which, in addition to the request itself, contains the
-///    server [`Span`], request lifetime [`AbortRegistration`], and an inert [`ResponseGuard`].
-///    Wrapping response logic in an [`Abortable`] future using the abort registration will ensure
-///    that the response does not execute longer than the request deadline. The `Channel` itself
-///    will clean up request state once either the deadline expires, or the response guard is
-///    dropped, or a response is sent.
+/// 1. [`Channel::execute`] - Requires the `tokio1` feature. This method is best for those who do not have specific scheduling needs and whose services are `Send + 'static`.
+/// 2. [`Channel::requests`] - This method is best for those who need direct access to individual requests, or are not using `tokio`, or want control over [futures](Future) scheduling. [`Requests`] is
+///    a stream of [`InFlightRequests`](InFlightRequest), each which has an [`execute`](InFlightRequest::execute) method. If using `execute`, request processing will automatically cease when either
+///    the request deadline is reached or when a corresponding cancellation message is received by the Channel.
+/// 3. [`Stream::next`](futures::stream::StreamExt::next) / [`Sink::send`](futures::sink::SinkExt::send) - A user is free to manually read requests from, and send responses into, a Channel in lieu of
+///    the previous methods. Channels stream [`TrackedRequests`](TrackedRequest), which, in addition to the request itself, contains the server [`Span`], request lifetime [`AbortRegistration`], and an
+///    inert [`ResponseGuard`]. Wrapping response logic in an [`Abortable`] future using the abort registration will ensure that the response does not execute longer than the request deadline. The
+///    `Channel` itself will clean up request state once either the deadline expires, or the response guard is dropped, or a response is sent.
 ///
 /// Channels must be implemented using the decorator pattern: the only way to create a
 /// `TrackedRequest` is to get one from another `Channel`. Ultimately, all `TrackedRequests` are
@@ -323,10 +297,7 @@ where
     /// simplistic throttling heuristic. It is easy to set a number that is too low for the
     /// resources available to the server. For production use cases, a more advanced throttler is
     /// likely needed.
-    fn max_concurrent_requests(
-        self,
-        limit: usize,
-    ) -> limits::requests_per_channel::MaxRequests<Self>
+    fn max_concurrent_requests(self, limit: usize) -> limits::requests_per_channel::MaxRequests<Self>
     where
         Self: Sized,
     {
@@ -454,7 +425,7 @@ where
                         tracing::info!("ResponseCancelled");
                     }
                     Ready
-                }
+                },
                 // Pending cancellations don't block Channel closure, because all they do is ensure
                 // the Channel's internal state is cleaned up. But Channel closure also cleans up
                 // the Channel state, so there's no reason to wait on a cancellation before
@@ -472,11 +443,7 @@ where
                 Poll::Pending => Pending,
             };
 
-            let request_status = match self
-                .transport_pin_mut()
-                .poll_next(cx)
-                .map_err(|e| ChannelError::Read(Arc::new(e)))?
-            {
+            let request_status = match self.transport_pin_mut().poll_next(cx).map_err(|e| ChannelError::Read(Arc::new(e)))? {
                 Poll::Ready(Some(message)) => match message {
                     ClientMessage::Request(request) => {
                         match self.as_mut().start_request(request) {
@@ -487,13 +454,10 @@ where
                                 // cannot return Poll::Pending here, since nothing has scheduled a
                                 // wakeup yet.
                                 continue;
-                            }
+                            },
                         }
-                    }
-                    ClientMessage::Cancel {
-                        trace_context,
-                        request_id,
-                    } => {
+                    },
+                    ClientMessage::Cancel { trace_context, request_id } => {
                         if !self.in_flight_requests_mut().cancel_request(request_id) {
                             tracing::trace!(
                                 rpc.trace_id = %trace_context.trace_id,
@@ -501,15 +465,13 @@ where
                             );
                         }
                         Ready
-                    }
+                    },
                 },
                 Poll::Ready(None) => Closed,
                 Poll::Pending => Pending,
             };
 
-            let status = cancellation_status
-                .combine(expiration_status)
-                .combine(request_status);
+            let status = cancellation_status.combine(expiration_status).combine(request_status);
 
             tracing::trace!(
                 "Cancellations: {cancellation_status:?}, \
@@ -534,23 +496,14 @@ where
     type Error = ChannelError<T::Error>;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
-        self.project()
-            .transport
-            .poll_ready(cx)
-            .map_err(|e| ChannelError::Ready(Arc::new(e)))
+        self.project().transport.poll_ready(cx).map_err(|e| ChannelError::Ready(Arc::new(e)))
     }
 
     fn start_send(mut self: Pin<&mut Self>, response: Response<Resp>) -> Result<(), Self::Error> {
-        if let Some(span) = self
-            .in_flight_requests_mut()
-            .remove_request(response.request_id)
-        {
+        if let Some(span) = self.in_flight_requests_mut().remove_request(response.request_id) {
             let _entered = span.enter();
             tracing::info!("SendResponse");
-            self.project()
-                .transport
-                .start_send(response)
-                .map_err(|e| ChannelError::Write(Arc::new(e)))
+            self.project().transport.start_send(response).map_err(|e| ChannelError::Write(Arc::new(e)))
         } else {
             // If the request isn't tracked anymore, there's no need to send the response.
             Ok(())
@@ -559,17 +512,11 @@ where
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         tracing::trace!("poll_flush");
-        self.project()
-            .transport
-            .poll_flush(cx)
-            .map_err(|e| ChannelError::Flush(Arc::new(e)))
+        self.project().transport.poll_flush(cx).map_err(|e| ChannelError::Flush(Arc::new(e)))
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
-        self.project()
-            .transport
-            .poll_close(cx)
-            .map_err(|e| ChannelError::Close(Arc::new(e)))
+        self.project().transport.poll_close(cx).map_err(|e| ChannelError::Close(Arc::new(e)))
     }
 }
 
@@ -630,16 +577,11 @@ where
     }
 
     /// Returns the inner channel over which messages are sent and received.
-    pub fn pending_responses_mut<'a>(
-        self: &'a mut Pin<&mut Self>,
-    ) -> &'a mut mpsc::Receiver<Response<C::Resp>> {
+    pub fn pending_responses_mut<'a>(self: &'a mut Pin<&mut Self>) -> &'a mut mpsc::Receiver<Response<C::Resp>> {
         self.as_mut().project().pending_responses
     }
 
-    fn pump_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<InFlightRequest<C::Req, C::Resp>, C::Error>>> {
+    fn pump_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<InFlightRequest<C::Req, C::Resp>, C::Error>>> {
         self.channel_pin_mut().poll_next(cx).map_ok(
             |TrackedRequest {
                  request,
@@ -664,23 +606,19 @@ where
         )
     }
 
-    fn pump_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        read_half_closed: bool,
-    ) -> Poll<Option<Result<(), C::Error>>> {
+    fn pump_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, read_half_closed: bool) -> Poll<Option<Result<(), C::Error>>> {
         match self.as_mut().poll_next_response(cx)? {
             Poll::Ready(Some(response)) => {
                 // A Ready result from poll_next_response means the Channel is ready to be written
                 // to. Therefore, we can call start_send without worry of a full buffer.
                 self.channel_pin_mut().start_send(response)?;
                 Poll::Ready(Some(Ok(())))
-            }
+            },
             Poll::Ready(None) => {
                 // Shutdown can't be done before we finish pumping out remaining responses.
                 ready!(self.channel_pin_mut().poll_flush(cx)?);
                 Poll::Ready(None)
-            }
+            },
             Poll::Pending => {
                 // No more requests to process, so flush any requests buffered in the transport.
                 ready!(self.channel_pin_mut().poll_flush(cx)?);
@@ -693,7 +631,7 @@ where
                 } else {
                     Poll::Pending
                 }
-            }
+            },
         }
     }
 
@@ -701,10 +639,7 @@ where
     ///
     /// Note that a response will only be yielded if the Channel is *ready* to be written to (i.e.
     /// start_send would succeed).
-    fn poll_next_response(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Response<C::Resp>, C::Error>>> {
+    fn poll_next_response(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Response<C::Resp>, C::Error>>> {
         ready!(self.ensure_writeable(cx)?);
 
         match ready!(self.pending_responses_mut().poll_recv(cx)) {
@@ -712,16 +647,13 @@ where
             None => {
                 // This branch likely won't happen, since the Requests stream is holding a Sender.
                 Poll::Ready(None)
-            }
+            },
         }
     }
 
     /// Returns Ready if writing a message to the Channel would not fail due to a full buffer. If
     /// the Channel is not ready to be written to, flushes it until it is ready.
-    fn ensure_writeable<'a>(
-        self: &'a mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(), C::Error>>> {
+    fn ensure_writeable<'a>(self: &'a mut Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<(), C::Error>>> {
         while self.channel_pin_mut().poll_ready(cx)?.is_pending() {
             ready!(self.channel_pin_mut().poll_flush(cx)?);
         }
@@ -827,8 +759,7 @@ impl<Req, Res> InFlightRequest<Req, Res> {
     ///
     /// The returned future will stop executing when the first of the following conditions is met:
     ///
-    /// 1. The channel that yielded this request receives a [cancellation
-    ///    message](ClientMessage::Cancel) for this request.
+    /// 1. The channel that yielded this request receives a [cancellation message](ClientMessage::Cancel) for this request.
     /// 2. The request [deadline](crate::context::Context::deadline) is reached.
     /// 3. The service function completes.
     ///
@@ -863,7 +794,6 @@ impl<Req, Res> InFlightRequest<Req, Res> {
     ///     assert_eq!(client.call(context::current(), 1).await.unwrap(), 2);
     /// }
     /// ```
-    ///
     pub async fn execute<S>(self, serve: S)
     where
         Req: RequestName,
@@ -874,22 +804,14 @@ impl<Req, Res> InFlightRequest<Req, Res> {
             mut response_guard,
             abort_registration,
             span,
-            request:
-                Request {
-                    context,
-                    message,
-                    id: request_id,
-                },
+            request: Request { context, message, id: request_id },
         } = self;
         span.record("otel.name", message.name());
         let _ = Abortable::new(
             async move {
                 let message = serve.serve(context, message).await;
                 tracing::info!("CompleteRequest");
-                let response = Response {
-                    request_id,
-                    message,
-                };
+                let response = Response { request_id, message };
                 let _ = response_tx.send(response).await;
                 tracing::info!("BufferResponse");
             },
@@ -905,10 +827,7 @@ impl<Req, Res> InFlightRequest<Req, Res> {
 }
 
 fn print_err(e: &(dyn Error + 'static)) -> String {
-    anyhow::Chain::new(e)
-        .map(|e| e.to_string())
-        .collect::<Vec<_>>()
-        .join(": ")
+    anyhow::Chain::new(e).map(|e| e.to_string()).collect::<Vec<_>>().join(": ")
 }
 
 impl<C> Stream for Requests<C>
@@ -932,22 +851,18 @@ where
                 (Poll::Ready(None), Poll::Ready(None)) => {
                     tracing::trace!("read: Poll::Ready(None), write: Poll::Ready(None)");
                     return Poll::Ready(None);
-                }
+                },
                 (Poll::Ready(Some(request_handler)), _) => {
                     tracing::trace!("read: Poll::Ready(Some), write: _");
                     return Poll::Ready(Some(Ok(request_handler)));
-                }
+                },
                 (_, Poll::Ready(Some(()))) => {
                     tracing::trace!("read: _, write: Poll::Ready(Some)");
-                }
+                },
                 (read @ Poll::Pending, write) | (read, write @ Poll::Pending) => {
-                    tracing::trace!(
-                        "read pending: {}, write pending: {}",
-                        read.is_pending(),
-                        write.is_pending()
-                    );
+                    tracing::trace!("read pending: {}, write pending: {}", read.is_pending(), write.is_pending());
                     return Poll::Pending;
-                }
+                },
             }
         }
     }
@@ -955,29 +870,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        in_flight_requests::AlreadyExistsError,
-        request_hook::{AfterRequest, BeforeRequest, RequestHook},
-        serve, BaseChannel, Channel, Config, Requests, Serve,
-    };
-    use crate::{
-        context, trace,
-        transport::channel::{self, UnboundedChannel},
-        ClientMessage, Request, Response, ServerError,
-    };
+    use super::in_flight_requests::AlreadyExistsError;
+    use super::request_hook::{AfterRequest, BeforeRequest, RequestHook};
+    use super::{serve, BaseChannel, Channel, Config, Requests, Serve};
+    use crate::transport::channel::{self, UnboundedChannel};
+    use crate::{context, trace, ClientMessage, Request, Response, ServerError};
     use assert_matches::assert_matches;
-    use futures::{
-        future::{pending, AbortRegistration, Abortable, Aborted},
-        prelude::*,
-        Future,
-    };
+    use futures::future::{pending, AbortRegistration, Abortable, Aborted};
+    use futures::prelude::*;
+    use futures::Future;
     use futures_test::task::noop_context;
-    use std::{
-        io,
-        pin::Pin,
-        task::Poll,
-        time::{Duration, Instant},
-    };
+    use std::io;
+    use std::pin::Pin;
+    use std::task::Poll;
+    use std::time::{Duration, Instant};
 
     fn test_channel<Req, Resp>() -> (
         Pin<Box<BaseChannel<Req, Resp, UnboundedChannel<ClientMessage<Req>, Response<Resp>>>>>,
@@ -988,32 +894,17 @@ mod tests {
     }
 
     fn test_requests<Req, Resp>() -> (
-        Pin<
-            Box<
-                Requests<
-                    BaseChannel<Req, Resp, UnboundedChannel<ClientMessage<Req>, Response<Resp>>>,
-                >,
-            >,
-        >,
+        Pin<Box<Requests<BaseChannel<Req, Resp, UnboundedChannel<ClientMessage<Req>, Response<Resp>>>>>>,
         UnboundedChannel<Response<Resp>, ClientMessage<Req>>,
     ) {
         let (tx, rx) = crate::transport::channel::unbounded();
-        (
-            Box::pin(BaseChannel::new(Config::default(), rx).requests()),
-            tx,
-        )
+        (Box::pin(BaseChannel::new(Config::default(), rx).requests()), tx)
     }
 
     fn test_bounded_requests<Req, Resp>(
         capacity: usize,
     ) -> (
-        Pin<
-            Box<
-                Requests<
-                    BaseChannel<Req, Resp, channel::Channel<ClientMessage<Req>, Response<Resp>>>,
-                >,
-            >,
-        >,
+        Pin<Box<Requests<BaseChannel<Req, Resp, channel::Channel<ClientMessage<Req>, Response<Resp>>>>>>,
         channel::Channel<Response<Resp>, ClientMessage<Req>>,
     ) {
         let (tx, rx) = crate::transport::channel::bounded(capacity);
@@ -1032,9 +923,7 @@ mod tests {
         })
     }
 
-    fn test_abortable(
-        abort_registration: AbortRegistration,
-    ) -> impl Future<Output = Result<(), Aborted>> {
+    fn test_abortable(abort_registration: AbortRegistration) -> impl Future<Output = Result<(), Aborted>> {
         Abortable::new(pending(), abort_registration)
     }
 
@@ -1048,11 +937,7 @@ mod tests {
     async fn serve_before_mutates_context() -> anyhow::Result<()> {
         struct SetDeadline(Instant);
         impl<Req> BeforeRequest<Req> for SetDeadline {
-            async fn before(
-                &mut self,
-                ctx: &mut context::Context,
-                _: &Req,
-            ) -> Result<(), ServerError> {
+            async fn before(&mut self, ctx: &mut context::Context, _: &Req) -> Result<(), ServerError> {
                 ctx.deadline = self.0;
                 Ok(())
             }
@@ -1081,17 +966,11 @@ mod tests {
         }
         impl PrintLatency {
             fn new() -> Self {
-                Self {
-                    start: Instant::now(),
-                }
+                Self { start: Instant::now() }
             }
         }
         impl<Req> BeforeRequest<Req> for PrintLatency {
-            async fn before(
-                &mut self,
-                _: &mut context::Context,
-                _: &Req,
-            ) -> Result<(), ServerError> {
+            async fn before(&mut self, _: &mut context::Context, _: &Req) -> Result<(), ServerError> {
                 self.start = Instant::now();
                 Ok(())
             }
@@ -1103,19 +982,14 @@ mod tests {
         }
 
         let serve = serve(move |_: context::Context, i| async move { Ok(i) });
-        serve
-            .before_and_after(PrintLatency::new())
-            .serve(context::current(), 7)
-            .await?;
+        serve.before_and_after(PrintLatency::new()).serve(context::current(), 7).await?;
         Ok(())
     }
 
     #[tokio::test]
     async fn serve_before_error_aborts_request() -> anyhow::Result<()> {
         let serve = serve(|_, _| async { panic!("Shouldn't get here") });
-        let deadline_hook = serve.before(|_: &mut context::Context, _: &i32| async {
-            Err(ServerError::new(io::ErrorKind::Other, "oops".into()))
-        });
+        let deadline_hook = serve.before(|_: &mut context::Context, _: &i32| async { Err(ServerError::new(io::ErrorKind::Other, "oops".into())) });
         let resp: Result<i32, _> = deadline_hook.serve(context::current(), 7).await;
         assert_matches!(resp, Err(_));
         Ok(())
@@ -1166,10 +1040,7 @@ mod tests {
             .unwrap();
         tokio::time::advance(std::time::Duration::from_secs(1000)).await;
 
-        assert_matches!(
-            channel.as_mut().poll_next(&mut noop_context()),
-            Poll::Pending
-        );
+        assert_matches!(channel.as_mut().poll_next(&mut noop_context()), Poll::Pending);
         assert_matches!(test_abortable(req0.abort_registration).await, Err(Aborted));
         assert_matches!(test_abortable(req1.abort_registration).await, Err(Aborted));
     }
@@ -1195,10 +1066,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_matches!(
-            channel.as_mut().poll_next(&mut noop_context()),
-            Poll::Pending
-        );
+        assert_matches!(channel.as_mut().poll_next(&mut noop_context()), Poll::Pending);
 
         assert_matches!(test_abortable(req.abort_registration).await, Err(Aborted));
     }
@@ -1218,20 +1086,14 @@ mod tests {
             .unwrap();
 
         drop(tx);
-        assert_matches!(
-            channel.as_mut().poll_next(&mut noop_context()),
-            Poll::Pending
-        );
+        assert_matches!(channel.as_mut().poll_next(&mut noop_context()), Poll::Pending);
     }
 
     #[tokio::test]
     async fn base_channel_with_closed_transport_and_no_in_flight_requests_returns_closed() {
         let (mut channel, tx) = test_channel::<(), ()>();
         drop(tx);
-        assert_matches!(
-            channel.as_mut().poll_next(&mut noop_context()),
-            Poll::Ready(None)
-        );
+        assert_matches!(channel.as_mut().poll_next(&mut noop_context()), Poll::Ready(None));
     }
 
     #[tokio::test]
@@ -1239,10 +1101,7 @@ mod tests {
         let (mut channel, mut tx) = test_channel::<(), ()>();
         tx.send(fake_request(())).await.unwrap();
 
-        assert_matches!(
-            channel.as_mut().poll_next(&mut noop_context()),
-            Poll::Ready(Some(Ok(_)))
-        );
+        assert_matches!(channel.as_mut().poll_next(&mut noop_context()), Poll::Ready(Some(Ok(_))));
     }
 
     #[tokio::test]
@@ -1262,10 +1121,7 @@ mod tests {
 
         tx.send(fake_request(())).await.unwrap();
 
-        assert_matches!(
-            channel.as_mut().poll_next(&mut noop_context()),
-            Poll::Ready(Some(Ok(_)))
-        );
+        assert_matches!(channel.as_mut().poll_next(&mut noop_context()), Poll::Ready(Some(Ok(_))));
         assert_matches!(test_abortable(req.abort_registration).await, Err(Aborted));
     }
 
@@ -1282,13 +1138,7 @@ mod tests {
             })
             .unwrap();
         assert_eq!(channel.in_flight_requests(), 1);
-        channel
-            .as_mut()
-            .start_send(Response {
-                request_id: 0,
-                message: Ok(()),
-            })
-            .unwrap();
+        channel.as_mut().start_send(Response { request_id: 0, message: Ok(()) }).unwrap();
         assert_eq!(channel.in_flight_requests(), 0);
     }
 
@@ -1303,10 +1153,7 @@ mod tests {
         };
         drop(request);
 
-        let poll = requests
-            .as_mut()
-            .channel_pin_mut()
-            .poll_next(&mut noop_context());
+        let poll = requests.as_mut().channel_pin_mut().poll_next(&mut noop_context());
         assert!(poll.is_pending());
         let in_flight_requests = requests.channel().in_flight_requests();
         assert_eq!(in_flight_requests, 0);
@@ -1322,12 +1169,7 @@ mod tests {
             result => panic!("Unexpected result: {:?}", result),
         };
         request.execute(serve(|_, _| async { Ok(()) })).await;
-        assert!(requests
-            .as_mut()
-            .channel_pin_mut()
-            .canceled_requests
-            .poll_recv(&mut noop_context())
-            .is_pending());
+        assert!(requests.as_mut().channel_pin_mut().canceled_requests.poll_recv(&mut noop_context()).is_pending());
     }
 
     #[tokio::test]
@@ -1344,26 +1186,10 @@ mod tests {
                 message: (),
             })
             .unwrap();
-        requests
-            .as_mut()
-            .channel_pin_mut()
-            .start_send(Response {
-                request_id: 0,
-                message: Ok(()),
-            })
-            .unwrap();
+        requests.as_mut().channel_pin_mut().start_send(Response { request_id: 0, message: Ok(()) }).unwrap();
 
         // Response waiting to be written.
-        requests
-            .as_mut()
-            .project()
-            .responses_tx
-            .send(Response {
-                request_id: 1,
-                message: Ok(()),
-            })
-            .await
-            .unwrap();
+        requests.as_mut().project().responses_tx.send(Response { request_id: 1, message: Ok(()) }).await.unwrap();
 
         requests
             .as_mut()
@@ -1375,10 +1201,7 @@ mod tests {
             })
             .unwrap();
 
-        assert_matches!(
-            requests.as_mut().poll_next_response(&mut noop_context()),
-            Poll::Pending
-        );
+        assert_matches!(requests.as_mut().poll_next_response(&mut noop_context()), Poll::Pending);
     }
 
     #[tokio::test]
@@ -1395,14 +1218,7 @@ mod tests {
                 message: (),
             })
             .unwrap();
-        requests
-            .as_mut()
-            .channel_pin_mut()
-            .start_send(Response {
-                request_id: 0,
-                message: Ok(()),
-            })
-            .unwrap();
+        requests.as_mut().channel_pin_mut().start_send(Response { request_id: 0, message: Ok(()) }).unwrap();
 
         // Response waiting to be written.
         requests
@@ -1414,26 +1230,11 @@ mod tests {
                 message: (),
             })
             .unwrap();
-        requests
-            .as_mut()
-            .project()
-            .responses_tx
-            .send(Response {
-                request_id: 1,
-                message: Ok(()),
-            })
-            .await
-            .unwrap();
+        requests.as_mut().project().responses_tx.send(Response { request_id: 1, message: Ok(()) }).await.unwrap();
 
-        assert_matches!(
-            requests.as_mut().pump_write(&mut noop_context(), true),
-            Poll::Pending
-        );
+        assert_matches!(requests.as_mut().pump_write(&mut noop_context(), true), Poll::Pending);
         // Assert that the pending response was not polled while the channel was blocked.
-        assert_matches!(
-            requests.as_mut().pending_responses_mut().recv().await,
-            Some(_)
-        );
+        assert_matches!(requests.as_mut().pending_responses_mut().recv().await, Some(_));
     }
 
     #[tokio::test]
@@ -1443,10 +1244,7 @@ mod tests {
         // Response written to the transport.
         tx.send(fake_request(())).await.unwrap();
 
-        assert_matches!(
-            requests.as_mut().pump_read(&mut noop_context()),
-            Poll::Ready(Some(Ok(_)))
-        );
+        assert_matches!(requests.as_mut().pump_read(&mut noop_context()), Poll::Ready(Some(Ok(_))));
         assert_eq!(requests.channel.in_flight_requests(), 1);
     }
 }

@@ -28,28 +28,18 @@
 //! process, and no context switching between different languages.
 //!
 //! Some other features of lrcall:
-//! - Pluggable transport: any type implementing `Stream<Item = Request> + Sink<Response>` can be
-//!   used as a transport to connect the client and server.
+//! - Pluggable transport: any type implementing `Stream<Item = Request> + Sink<Response>` can be used as a transport to connect the client and server.
 //! - `Send + 'static` optional: if the transport doesn't require it, neither does lrcall!
-//! - Cascading cancellation: dropping a request will send a cancellation message to the server.
-//!   The server will cease any unfinished work on the request, subsequently cancelling any of its
-//!   own requests, repeating for the entire chain of transitive dependencies.
-//! - Configurable deadlines and deadline propagation: request deadlines default to 10s if
-//!   unspecified. The server will automatically cease work when the deadline has passed. Any
-//!   requests sent by the server that use the request context will propagate the request deadline.
-//!   For example, if a server is handling a request with a 10s deadline, does 2s of work, then
-//!   sends a request to another server, that server will see an 8s deadline.
-//! - Distributed tracing: lrcall is instrumented with
-//!   [tracing](https://github.com/tokio-rs/tracing) primitives extended with
-//!   [OpenTelemetry](https://opentelemetry.io/) traces. Using a compatible tracing subscriber like
-//!   [OTLP](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-otlp),
-//!   each RPC can be traced through the client, server, and other dependencies downstream of the
-//!   server. Even for applications not connected to a distributed tracing collector, the
-//!   instrumentation can also be ingested by regular loggers like
-//!   [env_logger](https://github.com/env-logger-rs/env_logger/).
-//! - Serde serialization: enabling the `serde1` Cargo feature will make service requests and
-//!   responses `Serialize + Deserialize`. It's entirely optional, though: in-memory transports can
-//!   be used, as well, so the price of serialization doesn't have to be paid when it's not needed.
+//! - Cascading cancellation: dropping a request will send a cancellation message to the server. The server will cease any unfinished work on the request, subsequently cancelling any of its own
+//!   requests, repeating for the entire chain of transitive dependencies.
+//! - Configurable deadlines and deadline propagation: request deadlines default to 10s if unspecified. The server will automatically cease work when the deadline has passed. Any requests sent by the
+//!   server that use the request context will propagate the request deadline. For example, if a server is handling a request with a 10s deadline, does 2s of work, then sends a request to another
+//!   server, that server will see an 8s deadline.
+//! - Distributed tracing: lrcall is instrumented with [tracing](https://github.com/tokio-rs/tracing) primitives extended with [OpenTelemetry](https://opentelemetry.io/) traces. Using a compatible tracing
+//!   subscriber like [OTLP](https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-otlp), each RPC can be traced through the client, server, and other dependencies downstream of
+//!   the server. Even for applications not connected to a distributed tracing collector, the instrumentation can also be ingested by regular loggers like [env_logger](https://github.com/env-logger-rs/env_logger/).
+//! - Serde serialization: enabling the `serde1` Cargo feature will make service requests and responses `Serialize + Deserialize`. It's entirely optional, though: in-memory transports can be used, as
+//!   well, so the price of serialization doesn't have to be paid when it's not needed.
 //!
 //! ## Usage
 //! Add to your `Cargo.toml` dependencies:
@@ -251,7 +241,11 @@ pub(crate) mod util;
 
 pub use crate::transport::sealed::Transport;
 
-use std::{any::Any, error::Error, io, sync::Arc, time::Instant};
+use std::any::Any;
+use std::error::Error;
+use std::io;
+use std::sync::Arc;
+use std::time::Instant;
 
 /// A message from a client to a server.
 #[derive(Debug)]
@@ -259,8 +253,8 @@ use std::{any::Any, error::Error, io, sync::Arc, time::Instant};
 #[non_exhaustive]
 pub enum ClientMessage<T> {
     /// A request initiated by a user. The server responds to a request by invoking a
-    /// service-provided request handler.  The handler completes with a [`response`](Response), which
-    /// the server sends back to the client.
+    /// service-provided request handler.  The handler completes with a [`response`](Response),
+    /// which the server sends back to the client.
     Request(Request<T>),
     /// A command to cancel an in-flight request, automatically sent by the client when a response
     /// future is dropped.
@@ -270,8 +264,8 @@ pub enum ClientMessage<T> {
     /// not be canceled, because the framework layer does not
     /// know about them.
     Cancel {
-        /// The trace context associates the message with a specific chain of causally-related actions,
-        /// possibly orchestrated across many distributed systems.
+        /// The trace context associates the message with a specific chain of causally-related
+        /// actions, possibly orchestrated across many distributed systems.
         #[cfg_attr(feature = "serde1", serde(default))]
         trace_context: trace::Context,
         /// The ID of the request to cancel.
@@ -376,14 +370,8 @@ pub struct Response<T> {
 #[non_exhaustive]
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 pub struct ServerError {
-    #[cfg_attr(
-        feature = "serde1",
-        serde(serialize_with = "util::serde::serialize_io_error_kind_as_u32")
-    )]
-    #[cfg_attr(
-        feature = "serde1",
-        serde(deserialize_with = "util::serde::deserialize_io_error_kind_from_u32")
-    )]
+    #[cfg_attr(feature = "serde1", serde(serialize_with = "util::serde::serialize_io_error_kind_as_u32"))]
+    #[cfg_attr(feature = "serde1", serde(deserialize_with = "util::serde::deserialize_io_error_kind_from_u32"))]
     /// The type of error that occurred to fail the request.
     pub kind: io::ErrorKind,
     /// A message describing more detail about the error that occurred.
@@ -537,24 +525,9 @@ fn test_channel_error_upcast() {
         }
     }
     impl Error for E {}
-    assert_matches!(
-        ChannelError::Read(Arc::new(E)).upcast_error(),
-        ChannelError::Read(_)
-    );
-    assert_matches!(
-        ChannelError::Ready(Arc::new(E)).upcast_error(),
-        ChannelError::Ready(_)
-    );
-    assert_matches!(
-        ChannelError::Write(Arc::new(E)).upcast_error(),
-        ChannelError::Write(_)
-    );
-    assert_matches!(
-        ChannelError::Flush(Arc::new(E)).upcast_error(),
-        ChannelError::Flush(_)
-    );
-    assert_matches!(
-        ChannelError::Close(Arc::new(E)).upcast_error(),
-        ChannelError::Close(_)
-    );
+    assert_matches!(ChannelError::Read(Arc::new(E)).upcast_error(), ChannelError::Read(_));
+    assert_matches!(ChannelError::Ready(Arc::new(E)).upcast_error(), ChannelError::Ready(_));
+    assert_matches!(ChannelError::Write(Arc::new(E)).upcast_error(), ChannelError::Write(_));
+    assert_matches!(ChannelError::Flush(Arc::new(E)).upcast_error(), ChannelError::Flush(_));
+    assert_matches!(ChannelError::Close(Arc::new(E)).upcast_error(), ChannelError::Close(_));
 }

@@ -7,8 +7,10 @@
 
 //! Provides a hook that runs both before and after request execution.
 
-use super::{after::AfterRequest, before::BeforeRequest};
-use crate::{context, server::Serve, RequestName, ServerError};
+use super::after::AfterRequest;
+use super::before::BeforeRequest;
+use crate::server::Serve;
+use crate::{context, RequestName, ServerError};
 use std::marker::PhantomData;
 
 /// A Service function that runs a hook both before and after request execution.
@@ -20,11 +22,7 @@ pub struct HookThenServeThenHook<Req, Resp, Serv, Hook> {
 
 impl<Req, Resp, Serv, Hook> HookThenServeThenHook<Req, Resp, Serv, Hook> {
     pub(crate) fn new(serve: Serv, hook: Hook) -> Self {
-        Self {
-            serve,
-            hook,
-            fns: PhantomData,
-        }
+        Self { serve, hook, fns: PhantomData }
     }
 }
 
@@ -48,9 +46,7 @@ where
     type Resp = Resp;
 
     async fn serve(self, mut ctx: context::Context, req: Req) -> Result<Serv::Resp, ServerError> {
-        let HookThenServeThenHook {
-            serve, mut hook, ..
-        } = self;
+        let HookThenServeThenHook { serve, mut hook, .. } = self;
         hook.before(&mut ctx, &req).await?;
         let mut resp = serve.serve(ctx, req).await;
         hook.after(&mut ctx, &mut resp).await;

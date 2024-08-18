@@ -7,7 +7,8 @@
 
 //! Provides a hook that runs before request execution.
 
-use crate::{context, server::Serve, ServerError};
+use crate::server::Serve;
+use crate::{context, ServerError};
 use futures::prelude::*;
 
 /// A hook that runs before request execution.
@@ -34,13 +35,7 @@ pub trait BeforeRequestList<Req>: BeforeRequest<Req> {
     fn then<Next: BeforeRequest<Req>>(self, next: Next) -> Self::Then<Next>;
 
     /// Same as `then`, but helps the compiler with type inference when Next is a closure.
-    fn then_fn<
-        Next: FnMut(&mut context::Context, &Req) -> Fut,
-        Fut: Future<Output = Result<(), ServerError>>,
-    >(
-        self,
-        next: Next,
-    ) -> Self::Then<Next>
+    fn then_fn<Next: FnMut(&mut context::Context, &Req) -> Fut, Fut: Future<Output = Result<(), ServerError>>>(self, next: Next) -> Self::Then<Next>
     where
         Self: Sized,
     {
@@ -86,14 +81,8 @@ where
     type Req = Serv::Req;
     type Resp = Serv::Resp;
 
-    async fn serve(
-        self,
-        mut ctx: context::Context,
-        req: Self::Req,
-    ) -> Result<Serv::Resp, ServerError> {
-        let HookThenServe {
-            serve, mut hook, ..
-        } = self;
+    async fn serve(self, mut ctx: context::Context, req: Self::Req) -> Result<Serv::Resp, ServerError> {
+        let HookThenServe { serve, mut hook, .. } = self;
         hook.before(&mut ctx, &req).await?;
         serve.serve(ctx, req).await
     }
@@ -138,9 +127,7 @@ pub struct BeforeRequestCons<First, Rest>(First, Rest);
 #[derive(Clone, Copy)]
 pub struct BeforeRequestNil;
 
-impl<Req, First: BeforeRequest<Req>, Rest: BeforeRequest<Req>> BeforeRequest<Req>
-    for BeforeRequestCons<First, Rest>
-{
+impl<Req, First: BeforeRequest<Req>, Rest: BeforeRequest<Req>> BeforeRequest<Req> for BeforeRequestCons<First, Rest> {
     async fn before(&mut self, ctx: &mut context::Context, req: &Req) -> Result<(), ServerError> {
         let BeforeRequestCons(first, rest) = self;
         first.before(ctx, req).await?;
@@ -155,9 +142,7 @@ impl<Req> BeforeRequest<Req> for BeforeRequestNil {
     }
 }
 
-impl<Req, First: BeforeRequest<Req>, Rest: BeforeRequestList<Req>> BeforeRequestList<Req>
-    for BeforeRequestCons<First, Rest>
-{
+impl<Req, First: BeforeRequest<Req>, Rest: BeforeRequestList<Req>> BeforeRequestList<Req> for BeforeRequestCons<First, Rest> {
     type Then<Next> = BeforeRequestCons<First, Rest::Then<Next>> where Next: BeforeRequest<Req>;
 
     fn then<Next: BeforeRequest<Req>>(self, next: Next) -> Self::Then<Next> {

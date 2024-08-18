@@ -19,11 +19,9 @@
 
 use opentelemetry::trace::TraceContextExt;
 use rand::Rng;
-use std::{
-    convert::TryFrom,
-    fmt::{self, Formatter},
-    num::{NonZeroU128, NonZeroU64},
-};
+use std::convert::TryFrom;
+use std::fmt::{self, Formatter};
+use std::num::{NonZeroU128, NonZeroU64};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// A context for tracing the execution of processes, distributed or otherwise.
@@ -166,11 +164,7 @@ impl TryFrom<&tracing::Span> for Context {
 
     fn try_from(span: &tracing::Span) -> Result<Self, NoActiveSpan> {
         let context = span.context();
-        if context.has_active_span() {
-            Ok(Self::from(context.span()))
-        } else {
-            Err(NoActiveSpan)
-        }
+        if context.has_active_span() { Ok(Self::from(context.span())) } else { Err(NoActiveSpan) }
     }
 }
 
@@ -196,11 +190,7 @@ impl From<SamplingDecision> for opentelemetry::trace::TraceFlags {
 
 impl From<&opentelemetry::trace::SpanContext> for SamplingDecision {
     fn from(context: &opentelemetry::trace::SpanContext) -> Self {
-        if context.is_sampled() {
-            SamplingDecision::Sampled
-        } else {
-            SamplingDecision::Unsampled
-        }
+        if context.is_sampled() { SamplingDecision::Sampled } else { SamplingDecision::Unsampled }
     }
 }
 
@@ -255,8 +245,6 @@ mod u128_serde {
     where
         D: serde::Deserializer<'de>,
     {
-        Ok(u128::from_le_bytes(serde::Deserialize::deserialize(
-            deserializer,
-        )?))
+        Ok(u128::from_le_bytes(serde::Deserialize::deserialize(deserializer)?))
     }
 }

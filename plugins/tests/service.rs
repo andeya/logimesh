@@ -1,6 +1,6 @@
+use lrcall::context;
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
-use lrcall::context;
 
 #[test]
 fn att_service_trait() {
@@ -37,12 +37,7 @@ fn raw_idents() {
     }
 
     impl r#trait for () {
-        async fn r#await(
-            self,
-            _: context::Context,
-            r#struct: r#yield,
-            r#enum: i32,
-        ) -> (r#yield, i32) {
+        async fn r#await(self, _: context::Context, r#struct: r#yield, r#enum: i32) -> (r#yield, i32) {
             (r#struct, r#enum)
         }
 

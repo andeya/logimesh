@@ -1,15 +1,12 @@
 use assert_matches::assert_matches;
-use futures::{
-    future::{join_all, ready},
-    prelude::*,
-};
+use futures::future::{join_all, ready};
+use futures::prelude::*;
+use lrcall::client::{self};
+use lrcall::context;
+use lrcall::server::incoming::Incoming;
+use lrcall::server::{BaseChannel, Channel};
+use lrcall::transport::channel;
 use std::time::{Duration, Instant};
-use lrcall::{
-    client::{self},
-    context,
-    server::{incoming::Incoming, BaseChannel, Channel},
-    transport::channel,
-};
 use tokio::join;
 
 #[lrcall_plugins::service]
@@ -36,11 +33,7 @@ async fn sequential() {
     let (tx, rx) = lrcall::transport::channel::unbounded();
     let client = client::new(client::Config::default(), tx).spawn();
     let channel = BaseChannel::with_defaults(rx);
-    tokio::spawn(
-        channel
-            .execute(lrcall::server::serve(|_, i: u32| async move { Ok(i + 1) }))
-            .for_each(|response| response),
-    );
+    tokio::spawn(channel.execute(lrcall::server::serve(|_, i: u32| async move { Ok(i + 1) })).for_each(|response| response));
     assert_eq!(client.call(context::current(), 1).await.unwrap(), 2);
 }
 
@@ -217,11 +210,7 @@ async fn concurrent_join_all() -> anyhow::Result<()> {
     let _ = tracing_subscriber::fmt::try_init();
 
     let (tx, rx) = channel::unbounded();
-    tokio::spawn(
-        BaseChannel::with_defaults(rx)
-            .execute(Server.serve())
-            .for_each(spawn),
-    );
+    tokio::spawn(BaseChannel::with_defaults(rx).execute(Server.serve()).for_each(spawn));
 
     let client = ServiceClient::new(client::Config::default(), tx).spawn();
 

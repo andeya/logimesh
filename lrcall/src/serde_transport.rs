@@ -5,17 +5,22 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-//! A generic Serde-based `Transport` that can serialize anything supported by `tokio-serde` via any medium that implements `AsyncRead` and `AsyncWrite`.
+//! A generic Serde-based `Transport` that can serialize anything supported by `tokio-serde` via any
+//! medium that implements `AsyncRead` and `AsyncWrite`.
 
 #![deny(missing_docs)]
 
-use futures::{prelude::*, task::*};
+use futures::prelude::*;
+use futures::task::*;
 use pin_project::pin_project;
 use serde::{Deserialize, Serialize};
-use std::{error::Error, io, pin::Pin};
+use std::error::Error;
+use std::io;
+use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_serde::{Framed as SerdeFramed, *};
-use tokio_util::codec::{length_delimited::LengthDelimitedCodec, Framed};
+use tokio_util::codec::length_delimited::LengthDelimitedCodec;
+use tokio_util::codec::Framed;
 
 /// A transport that serializes to, and deserializes from, a byte stream.
 #[pin_project]
@@ -37,16 +42,12 @@ where
     Item: for<'a> Deserialize<'a>,
     Codec: Deserializer<Item>,
     CodecError: Into<Box<dyn std::error::Error + Send + Sync>>,
-    SerdeFramed<Framed<S, LengthDelimitedCodec>, Item, SinkItem, Codec>:
-        Stream<Item = Result<Item, CodecError>>,
+    SerdeFramed<Framed<S, LengthDelimitedCodec>, Item, SinkItem, Codec>: Stream<Item = Result<Item, CodecError>>,
 {
     type Item = io::Result<Item>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<io::Result<Item>>> {
-        self.project()
-            .inner
-            .poll_next(cx)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        self.project().inner.poll_next(cx).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 }
 
@@ -56,45 +57,29 @@ where
     SinkItem: Serialize,
     Codec: Serializer<SinkItem>,
     CodecError: Into<Box<dyn Error + Send + Sync>>,
-    SerdeFramed<Framed<S, LengthDelimitedCodec>, Item, SinkItem, Codec>:
-        Sink<SinkItem, Error = CodecError>,
+    SerdeFramed<Framed<S, LengthDelimitedCodec>, Item, SinkItem, Codec>: Sink<SinkItem, Error = CodecError>,
 {
     type Error = io::Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.project()
-            .inner
-            .poll_ready(cx)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        self.project().inner.poll_ready(cx).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 
     fn start_send(self: Pin<&mut Self>, item: SinkItem) -> io::Result<()> {
-        self.project()
-            .inner
-            .start_send(item)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        self.project().inner.start_send(item).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.project()
-            .inner
-            .poll_flush(cx)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        self.project().inner.poll_flush(cx).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.project()
-            .inner
-            .poll_close(cx)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        self.project().inner.poll_close(cx).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 }
 
 /// Constructs a new transport from a framed transport and a serialization codec.
-pub fn new<S, Item, SinkItem, Codec>(
-    framed_io: Framed<S, LengthDelimitedCodec>,
-    codec: Codec,
-) -> Transport<S, Item, SinkItem, Codec>
+pub fn new<S, Item, SinkItem, Codec>(framed_io: Framed<S, LengthDelimitedCodec>, codec: Codec) -> Transport<S, Item, SinkItem, Codec>
 where
     S: AsyncWrite + AsyncRead,
     Item: for<'de> Deserialize<'de>,
@@ -122,13 +107,12 @@ where
 #[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
 /// TCP support for generic transport using Tokio.
 pub mod tcp {
-    use {
-        super::*,
-        futures::ready,
-        std::{marker::PhantomData, net::SocketAddr},
-        tokio::net::{TcpListener, TcpStream, ToSocketAddrs},
-        tokio_util::codec::length_delimited,
-    };
+    use super::*;
+    use futures::ready;
+    use std::marker::PhantomData;
+    use std::net::SocketAddr;
+    use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
+    use tokio_util::codec::length_delimited;
 
     impl<Item, SinkItem, Codec> Transport<TcpStream, Item, SinkItem, Codec> {
         /// Returns the peer address of the underlying TcpStream.
@@ -181,10 +165,7 @@ pub mod tcp {
     }
 
     /// Connects to `addr`, wrapping the connection in a TCP transport.
-    pub fn connect<A, Item, SinkItem, Codec, CodecFn>(
-        addr: A,
-        codec_fn: CodecFn,
-    ) -> TcpConnect<impl Future<Output = io::Result<TcpStream>>, Item, SinkItem, CodecFn>
+    pub fn connect<A, Item, SinkItem, Codec, CodecFn>(addr: A, codec_fn: CodecFn) -> TcpConnect<impl Future<Output = io::Result<TcpStream>>, Item, SinkItem, CodecFn>
     where
         A: ToSocketAddrs,
         Item: for<'de> Deserialize<'de>,
@@ -201,10 +182,7 @@ pub mod tcp {
     }
 
     /// Listens on `addr`, wrapping accepted connections in TCP transports.
-    pub async fn listen<A, Item, SinkItem, Codec, CodecFn>(
-        addr: A,
-        codec_fn: CodecFn,
-    ) -> io::Result<Incoming<Item, SinkItem, Codec, CodecFn>>
+    pub async fn listen<A, Item, SinkItem, Codec, CodecFn>(addr: A, codec_fn: CodecFn) -> io::Result<Incoming<Item, SinkItem, Codec, CodecFn>>
     where
         A: ToSocketAddrs,
         Item: for<'de> Deserialize<'de>,
@@ -215,10 +193,7 @@ pub mod tcp {
     }
 
     /// Wrap accepted connections from `listener` in TCP transports.
-    pub async fn listen_on<Item, SinkItem, Codec, CodecFn>(
-        listener: TcpListener,
-        codec_fn: CodecFn,
-    ) -> io::Result<Incoming<Item, SinkItem, Codec, CodecFn>>
+    pub async fn listen_on<Item, SinkItem, Codec, CodecFn>(listener: TcpListener, codec_fn: CodecFn) -> io::Result<Incoming<Item, SinkItem, Codec, CodecFn>>
     where
         Item: for<'de> Deserialize<'de>,
         Codec: Serializer<SinkItem> + Deserializer<Item>,
@@ -272,12 +247,8 @@ pub mod tcp {
         type Item = io::Result<Transport<TcpStream, Item, SinkItem, Codec>>;
 
         fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            let conn: TcpStream =
-                ready!(Pin::new(&mut self.as_mut().project().listener).poll_accept(cx)?).0;
-            Poll::Ready(Some(Ok(new(
-                self.config.new_framed(conn),
-                (self.codec_fn)(),
-            ))))
+            let conn: TcpStream = ready!(Pin::new(&mut self.as_mut().project().listener).poll_accept(cx)?).0;
+            Poll::Ready(Some(Ok(new(self.config.new_framed(conn), (self.codec_fn)()))))
         }
     }
 }
@@ -286,13 +257,13 @@ pub mod tcp {
 #[cfg_attr(docsrs, doc(cfg(all(unix, feature = "unix"))))]
 /// Unix Domain Socket support for generic transport using Tokio.
 pub mod unix {
-    use {
-        super::*,
-        futures::ready,
-        std::{marker::PhantomData, path::Path},
-        tokio::net::{unix::SocketAddr, UnixListener, UnixStream},
-        tokio_util::codec::length_delimited,
-    };
+    use super::*;
+    use futures::ready;
+    use std::marker::PhantomData;
+    use std::path::Path;
+    use tokio::net::unix::SocketAddr;
+    use tokio::net::{UnixListener, UnixStream};
+    use tokio_util::codec::length_delimited;
 
     impl<Item, SinkItem, Codec> Transport<UnixStream, Item, SinkItem, Codec> {
         /// Returns the socket address of the remote half of the underlying [`UnixStream`].
@@ -346,10 +317,7 @@ pub mod unix {
 
     /// Connects to socket named by `path`, wrapping the connection in a Unix Domain Socket
     /// transport.
-    pub fn connect<P, Item, SinkItem, Codec, CodecFn>(
-        path: P,
-        codec_fn: CodecFn,
-    ) -> UnixConnect<impl Future<Output = io::Result<UnixStream>>, Item, SinkItem, CodecFn>
+    pub fn connect<P, Item, SinkItem, Codec, CodecFn>(path: P, codec_fn: CodecFn) -> UnixConnect<impl Future<Output = io::Result<UnixStream>>, Item, SinkItem, CodecFn>
     where
         P: AsRef<Path>,
         Item: for<'de> Deserialize<'de>,
@@ -367,10 +335,7 @@ pub mod unix {
 
     /// Listens on the socket named by `path`, wrapping accepted connections in Unix Domain Socket
     /// transports.
-    pub async fn listen<P, Item, SinkItem, Codec, CodecFn>(
-        path: P,
-        codec_fn: CodecFn,
-    ) -> io::Result<Incoming<Item, SinkItem, Codec, CodecFn>>
+    pub async fn listen<P, Item, SinkItem, Codec, CodecFn>(path: P, codec_fn: CodecFn) -> io::Result<Incoming<Item, SinkItem, Codec, CodecFn>>
     where
         P: AsRef<Path>,
         Item: for<'de> Deserialize<'de>,
@@ -381,10 +346,7 @@ pub mod unix {
     }
 
     /// Wrap accepted connections from `listener` in Unix Domain Socket transports.
-    pub async fn listen_on<Item, SinkItem, Codec, CodecFn>(
-        listener: UnixListener,
-        codec_fn: CodecFn,
-    ) -> io::Result<Incoming<Item, SinkItem, Codec, CodecFn>>
+    pub async fn listen_on<Item, SinkItem, Codec, CodecFn>(listener: UnixListener, codec_fn: CodecFn) -> io::Result<Incoming<Item, SinkItem, Codec, CodecFn>>
     where
         Item: for<'de> Deserialize<'de>,
         Codec: Serializer<SinkItem> + Deserializer<Item>,
@@ -439,10 +401,7 @@ pub mod unix {
 
         fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             let conn: UnixStream = ready!(self.as_mut().project().listener.poll_accept(cx)?).0;
-            Poll::Ready(Some(Ok(new(
-                self.config.new_framed(conn),
-                (self.codec_fn)(),
-            ))))
+            Poll::Ready(Some(Ok(new(self.config.new_framed(conn), (self.codec_fn)()))))
         }
     }
 
@@ -562,14 +521,13 @@ pub mod unix {
 mod tests {
     use super::Transport;
     use assert_matches::assert_matches;
-    use futures::{task::*, Sink, Stream};
+    use futures::task::*;
+    use futures::{Sink, Stream};
     #[cfg(any(feature = "tcp", all(unix, feature = "unix")))]
     use futures::{SinkExt, StreamExt};
     use pin_utils::pin_mut;
-    use std::{
-        io::{self, Cursor},
-        pin::Pin,
-    };
+    use std::io::{self, Cursor};
+    use std::pin::Pin;
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
     use tokio_serde::formats::SymmetricalJson;
 
@@ -580,21 +538,13 @@ mod tests {
     struct TestIo(Cursor<Vec<u8>>);
 
     impl AsyncRead for TestIo {
-        fn poll_read(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &mut ReadBuf<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
             AsyncRead::poll_read(Pin::new(&mut self.0), cx, buf)
         }
     }
 
     impl AsyncWrite for TestIo {
-        fn poll_write(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<io::Result<usize>> {
+        fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
             AsyncWrite::poll_write(Pin::new(&mut self.0), cx, buf)
         }
 
@@ -618,10 +568,7 @@ mod tests {
     #[test]
     fn test_stream() {
         let data: &[u8] = b"\x00\x00\x00\x18\"Test one, check check.\"";
-        let transport = Transport::from((
-            TestIo(Cursor::new(Vec::from(data))),
-            SymmetricalJson::<String>::default(),
-        ));
+        let transport = Transport::from((TestIo(Cursor::new(Vec::from(data))), SymmetricalJson::<String>::default()));
         pin_mut!(transport);
 
         assert_matches!(
@@ -633,29 +580,12 @@ mod tests {
     #[test]
     fn test_sink() {
         let writer = Cursor::new(vec![]);
-        let mut transport = Box::pin(Transport::from((
-            TestIo(writer),
-            SymmetricalJson::<String>::default(),
-        )));
+        let mut transport = Box::pin(Transport::from((TestIo(writer), SymmetricalJson::<String>::default())));
 
-        assert_matches!(
-            transport.as_mut().poll_ready(&mut ctx()),
-            Poll::Ready(Ok(()))
-        );
-        assert_matches!(
-            transport
-                .as_mut()
-                .start_send("Test one, check check.".into()),
-            Ok(())
-        );
-        assert_matches!(
-            transport.as_mut().poll_flush(&mut ctx()),
-            Poll::Ready(Ok(()))
-        );
-        assert_eq!(
-            transport.get_ref().0.get_ref(),
-            b"\x00\x00\x00\x18\"Test one, check check.\""
-        );
+        assert_matches!(transport.as_mut().poll_ready(&mut ctx()), Poll::Ready(Ok(())));
+        assert_matches!(transport.as_mut().start_send("Test one, check check.".into()), Ok(()));
+        assert_matches!(transport.as_mut().poll_flush(&mut ctx()), Poll::Ready(Ok(())));
+        assert_eq!(transport.get_ref().0.get_ref(), b"\x00\x00\x00\x18\"Test one, check check.\"");
     }
 
     #[cfg(feature = "tcp")]

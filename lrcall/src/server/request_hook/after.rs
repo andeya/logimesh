@@ -7,7 +7,8 @@
 
 //! Provides a hook that runs after request execution.
 
-use crate::{context, server::Serve, ServerError};
+use crate::server::Serve;
+use crate::{context, ServerError};
 use futures::prelude::*;
 
 /// A hook that runs after request execution.
@@ -58,14 +59,8 @@ where
     type Req = Serv::Req;
     type Resp = Serv::Resp;
 
-    async fn serve(
-        self,
-        mut ctx: context::Context,
-        req: Serv::Req,
-    ) -> Result<Serv::Resp, ServerError> {
-        let ServeThenHook {
-            serve, mut hook, ..
-        } = self;
+    async fn serve(self, mut ctx: context::Context, req: Serv::Req) -> Result<Serv::Resp, ServerError> {
+        let ServeThenHook { serve, mut hook, .. } = self;
         let mut resp = serve.serve(ctx, req).await;
         hook.after(&mut ctx, &mut resp).await;
         resp

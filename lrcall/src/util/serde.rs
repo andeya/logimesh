@@ -10,10 +10,7 @@ use std::io;
 
 /// Serializes [`io::ErrorKind`] as a `u32`.
 #[allow(clippy::trivially_copy_pass_by_ref)] // Exact fn signature required by serde derive
-pub fn serialize_io_error_kind_as_u32<S>(
-    kind: &io::ErrorKind,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
+pub fn serialize_io_error_kind_as_u32<S>(kind: &io::ErrorKind, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -43,9 +40,7 @@ where
 }
 
 /// Deserializes [`io::ErrorKind`] from a `u32`.
-pub fn deserialize_io_error_kind_from_u32<'de, D>(
-    deserializer: D,
-) -> Result<io::ErrorKind, D::Error>
+pub fn deserialize_io_error_kind_from_u32<'de, D>(deserializer: D) -> Result<io::ErrorKind, D::Error>
 where
     D: Deserializer<'de>,
 {

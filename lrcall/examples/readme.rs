@@ -6,10 +6,8 @@
 // https://opensource.org/licenses/MIT.
 
 use futures::prelude::*;
-use lrcall::{
-    client, context,
-    server::{self, Channel},
-};
+use lrcall::server::{self, Channel};
+use lrcall::{client, context};
 
 /// This is the service definition. It looks a lot like a trait definition.
 /// It defines one RPC, hello, which takes one arg, name, and returns a String.

@@ -5,18 +5,14 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-/// - The PubSub server sets up TCP listeners on 2 ports, the "subscriber" port and the "publisher"
-///   port. Because both publishers and subscribers initiate their connections to the PubSub
-///   server, the server requires no prior knowledge of either publishers or subscribers.
+/// - The PubSub server sets up TCP listeners on 2 ports, the "subscriber" port and the "publisher" port. Because both publishers and subscribers initiate their connections to the PubSub server,
+///   the server requires no prior knowledge of either publishers or subscribers.
 ///
-/// - Subscribers connect to the server on the server's "subscriber" port. Once a connection is
-///   established, the server acts as the client of the Subscriber service, initially requesting
-///   the topics the subscriber is interested in, and subsequently sending topical messages to the
-///   subscriber.
+/// - Subscribers connect to the server on the server's "subscriber" port. Once a connection is established, the server acts as the client of the Subscriber service, initially requesting the
+///   topics the subscriber is interested in, and subsequently sending topical messages to the subscriber.
 ///
-/// - Publishers connect to the server on the "publisher" port and, once connected, they send
-///   topical messages via Publisher service to the server. The server then broadcasts each
-///   messages to all clients subscribed to the topic of that message.
+/// - Publishers connect to the server on the "publisher" port and, once connected, they send topical messages via Publisher service to the server. The server then broadcasts each messages to all
+///   clients subscribed to the topic of that message.
 ///
 ///       Subscriber                        Publisher                       PubSub Server
 /// T1        |                                 |                                 |
@@ -34,27 +30,21 @@
 /// T10       |                                 |                                 |
 /// T11       |                                 |<--------------(OK) Publish------|
 use anyhow::anyhow;
-use futures::{
-    channel::oneshot,
-    future::{self, AbortHandle},
-    prelude::*,
-};
+use futures::channel::oneshot;
+use futures::future::{self, AbortHandle};
+use futures::prelude::*;
+use lrcall::serde_transport::tcp;
+use lrcall::server::{self, Channel};
+use lrcall::tokio_serde::formats::Json;
+use lrcall::{client, context};
 use opentelemetry::trace::TracerProvider as _;
 use publisher::Publisher as _;
-use std::{
-    collections::HashMap,
-    error::Error,
-    io,
-    net::SocketAddr,
-    sync::{Arc, Mutex, RwLock},
-};
+use std::collections::HashMap;
+use std::error::Error;
+use std::io;
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex, RwLock};
 use subscriber::Subscriber as _;
-use lrcall::{
-    client, context,
-    serde_transport::tcp,
-    server::{self, Channel},
-    tokio_serde::formats::Json,
-};
 use tokio::net::ToSocketAddrs;
 use tracing::info;
 use tracing_subscriber::prelude::*;
@@ -99,10 +89,7 @@ impl Drop for SubscriberHandle {
 }
 
 impl Subscriber {
-    async fn connect(
-        publisher_addr: impl ToSocketAddrs,
-        topics: Vec<String>,
-    ) -> anyhow::Result<SubscriberHandle> {
+    async fn connect(publisher_addr: impl ToSocketAddrs, topics: Vec<String>) -> anyhow::Result<SubscriberHandle> {
         let publisher = tcp::connect(publisher_addr, Json::default).await?;
         let local_addr = publisher.local_addr()?;
         let mut handler = server::BaseChannel::with_defaults(publisher).requests();
@@ -110,15 +97,9 @@ impl Subscriber {
         // The first request is for the topics being subscribed to.
         match handler.next().await {
             Some(init_topics) => init_topics?.execute(subscriber.clone().serve()).await,
-            None => {
-                return Err(anyhow!(
-                    "[{}] Server never initialized the subscriber.",
-                    local_addr
-                ))
-            }
+            None => return Err(anyhow!("[{}] Server never initialized the subscriber.", local_addr)),
         };
-        let (handler, abort_handle) =
-            future::abortable(handler.execute(subscriber.serve()).for_each(spawn));
+        let (handler, abort_handle) = future::abortable(handler.execute(subscriber.serve()).for_each(spawn));
         tokio::spawn(async move {
             match handler.await {
                 Ok(()) | Err(future::Aborted) => info!(?local_addr, "subscriber shutdown."),
@@ -165,19 +146,14 @@ impl Publisher {
             let publisher = connecting_publishers.next().await.unwrap().unwrap();
             info!(publisher.peer_addr = ?publisher.peer_addr(), "publisher connected.");
 
-            server::BaseChannel::with_defaults(publisher)
-                .execute(self.serve())
-                .for_each(spawn)
-                .await
+            server::BaseChannel::with_defaults(publisher).execute(self.serve()).for_each(spawn).await
         });
 
         Ok(publisher_addrs)
     }
 
     async fn start_subscription_manager(mut self) -> io::Result<SocketAddr> {
-        let mut connecting_subscribers = tcp::listen("localhost:0", Json::default)
-            .await?
-            .filter_map(|r| future::ready(r.ok()));
+        let mut connecting_subscribers = tcp::listen("localhost:0", Json::default).await?.filter_map(|r| future::ready(r.ok()));
         let new_subscriber_addr = connecting_subscribers.get_ref().local_addr();
         info!(?new_subscriber_addr, "listening for subscribers.");
 
@@ -185,17 +161,12 @@ impl Publisher {
             while let Some(conn) = connecting_subscribers.next().await {
                 let subscriber_addr = conn.peer_addr().unwrap();
 
-                let lrcall::client::NewClient {
-                    client: subscriber,
-                    dispatch,
-                } = subscriber::SubscriberClient::new(client::Config::default(), conn);
+                let lrcall::client::NewClient { client: subscriber, dispatch } = subscriber::SubscriberClient::new(client::Config::default(), conn);
                 let (ready_tx, ready) = oneshot::channel();
-                self.clone()
-                    .start_subscriber_gc(subscriber_addr, dispatch, ready);
+                self.clone().start_subscriber_gc(subscriber_addr, dispatch, ready);
 
                 // Populate the topics
-                self.initialize_subscription(subscriber_addr, subscriber)
-                    .await;
+                self.initialize_subscription(subscriber_addr, subscriber).await;
 
                 // Signal that initialization is done.
                 ready_tx.send(()).unwrap();
@@ -205,37 +176,20 @@ impl Publisher {
         Ok(new_subscriber_addr)
     }
 
-    async fn initialize_subscription(
-        &mut self,
-        subscriber_addr: SocketAddr,
-        subscriber: subscriber::SubscriberClient,
-    ) {
+    async fn initialize_subscription(&mut self, subscriber_addr: SocketAddr, subscriber: subscriber::SubscriberClient) {
         // Populate the topics
         if let Ok(topics) = subscriber.topics(context::current()).await {
-            self.clients.lock().unwrap().insert(
-                subscriber_addr,
-                Subscription {
-                    topics: topics.clone(),
-                },
-            );
+            self.clients.lock().unwrap().insert(subscriber_addr, Subscription { topics: topics.clone() });
 
             info!(%subscriber_addr, ?topics, "subscribed to new topics");
             let mut subscriptions = self.subscriptions.write().unwrap();
             for topic in topics {
-                subscriptions
-                    .entry(topic)
-                    .or_default()
-                    .insert(subscriber_addr, subscriber.clone());
+                subscriptions.entry(topic).or_default().insert(subscriber_addr, subscriber.clone());
             }
         }
     }
 
-    fn start_subscriber_gc<E: Error>(
-        self,
-        subscriber_addr: SocketAddr,
-        client_dispatch: impl Future<Output = Result<(), E>> + Send + 'static,
-        subscriber_ready: oneshot::Receiver<()>,
-    ) {
+    fn start_subscriber_gc<E: Error>(self, subscriber_addr: SocketAddr, client_dispatch: impl Future<Output = Result<(), E>> + Send + 'static, subscriber_ready: oneshot::Receiver<()>) {
         tokio::spawn(async move {
             if let Err(e) = client_dispatch.await {
                 info!(
@@ -246,10 +200,7 @@ impl Publisher {
             // Don't clean up the subscriber until initialization is done.
             let _ = subscriber_ready.await;
             if let Some(subscription) = self.clients.lock().unwrap().remove(&subscriber_addr) {
-                info!(
-                    "[{} unsubscribing from topics: {:?}",
-                    subscriber_addr, subscription.topics
-                );
+                info!("[{} unsubscribing from topics: {:?}", subscriber_addr, subscription.topics);
                 let mut subscriptions = self.subscriptions.write().unwrap();
                 for topic in subscription.topics {
                     let subscribers = subscriptions.get_mut(&topic).unwrap();
@@ -290,12 +241,12 @@ pub fn init_tracing(service_name: &'static str) -> anyhow::Result<()> {
         .tracing()
         .with_batch_config(opentelemetry_sdk::trace::BatchConfig::default())
         .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-        .with_trace_config(opentelemetry_sdk::trace::Config::default().with_resource(
-            opentelemetry_sdk::Resource::new([opentelemetry::KeyValue::new(
+        .with_trace_config(
+            opentelemetry_sdk::trace::Config::default().with_resource(opentelemetry_sdk::Resource::new([opentelemetry::KeyValue::new(
                 opentelemetry_semantic_conventions::resource::SERVICE_NAME,
                 service_name,
-            )]),
-        ))
+            )])),
+        )
         .install_batch(opentelemetry_sdk::runtime::Tokio)?;
     opentelemetry::global::set_tracer_provider(tracer_provider.clone());
     let tracer = tracer_provider.tracer(service_name);
@@ -320,49 +271,21 @@ async fn main() -> anyhow::Result<()> {
     .start()
     .await?;
 
-    let _subscriber0 = Subscriber::connect(
-        addrs.subscriptions,
-        vec!["calculus".into(), "cool shorts".into()],
-    )
-    .await?;
+    let _subscriber0 = Subscriber::connect(addrs.subscriptions, vec!["calculus".into(), "cool shorts".into()]).await?;
 
-    let _subscriber1 = Subscriber::connect(
-        addrs.subscriptions,
-        vec!["cool shorts".into(), "history".into()],
-    )
-    .await?;
+    let _subscriber1 = Subscriber::connect(addrs.subscriptions, vec!["cool shorts".into(), "history".into()]).await?;
 
-    let publisher = publisher::PublisherClient::new(
-        client::Config::default(),
-        tcp::connect(addrs.publisher, Json::default).await?,
-    )
-    .spawn();
+    let publisher = publisher::PublisherClient::new(client::Config::default(), tcp::connect(addrs.publisher, Json::default).await?).spawn();
 
-    publisher
-        .publish(context::current(), "calculus".into(), "sqrt(2)".into())
-        .await?;
+    publisher.publish(context::current(), "calculus".into(), "sqrt(2)".into()).await?;
 
-    publisher
-        .publish(
-            context::current(),
-            "cool shorts".into(),
-            "hello to all".into(),
-        )
-        .await?;
+    publisher.publish(context::current(), "cool shorts".into(), "hello to all".into()).await?;
 
-    publisher
-        .publish(context::current(), "history".into(), "napoleon".to_string())
-        .await?;
+    publisher.publish(context::current(), "history".into(), "napoleon".to_string()).await?;
 
     drop(_subscriber0);
 
-    publisher
-        .publish(
-            context::current(),
-            "cool shorts".into(),
-            "hello to who?".into(),
-        )
-        .await?;
+    publisher.publish(context::current(), "cool shorts".into(), "hello to who?".into()).await?;
 
     opentelemetry::global::shutdown_tracer_provider();
     info!("done.");

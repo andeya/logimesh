@@ -1,8 +1,8 @@
 # Run rustfmt with this config (it should be picked up automatically).
 version = "Two"
 edition = "2021"
-max_width = 120
-comment_width = 100
+max_width = 200
+comment_width = 200
 match_block_trailing_comma = true
 wrap_comments = true
 error_on_line_overflow = true

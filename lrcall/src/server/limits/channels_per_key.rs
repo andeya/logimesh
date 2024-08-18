@@ -5,17 +5,21 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-use crate::{
-    server::{self, Channel},
-    util::Compact,
-};
+use crate::server::{self, Channel};
+use crate::util::Compact;
 use fnv::FnvHashMap;
-use futures::{prelude::*, ready, stream::Fuse, task::*};
+use futures::prelude::*;
+use futures::ready;
+use futures::stream::Fuse;
+use futures::task::*;
 use pin_project::pin_project;
+use std::collections::hash_map::Entry;
+use std::convert::TryFrom;
+use std::fmt;
+use std::hash::Hash;
+use std::marker::Unpin;
+use std::pin::Pin;
 use std::sync::{Arc, Weak};
-use std::{
-    collections::hash_map::Entry, convert::TryFrom, fmt, hash::Hash, marker::Unpin, pin::Pin,
-};
 use tokio::sync::mpsc;
 use tracing::{debug, info, trace};
 
@@ -164,10 +168,7 @@ where
         self.as_mut().project().listener
     }
 
-    fn handle_new_channel(
-        mut self: Pin<&mut Self>,
-        stream: S::Item,
-    ) -> Result<TrackedChannel<S::Item, K>, K> {
+    fn handle_new_channel(mut self: Pin<&mut Self>, stream: S::Item) -> Result<TrackedChannel<S::Item, K>, K> {
         let key = (self.as_mut().keymaker)(&stream);
         let tracker = self.as_mut().increment_channels_for_key(key.clone())?;
 
@@ -177,10 +178,7 @@ where
             max_open_channels = self.channels_per_key,
             "Opening channel");
 
-        Ok(TrackedChannel {
-            tracker,
-            inner: stream,
-        })
+        Ok(TrackedChannel { tracker, inner: stream })
     }
 
     fn increment_channels_for_key(self: Pin<&mut Self>, key: K) -> Result<Arc<Tracker<K>>, K> {
@@ -195,7 +193,7 @@ where
 
                 vacant.insert(Arc::downgrade(&tracker));
                 Ok(tracker)
-            }
+            },
             Entry::Occupied(mut o) => {
                 let count = o.get().strong_count();
                 if count >= TryFrom::try_from(*self_.channels_per_key).unwrap() {
@@ -216,14 +214,11 @@ where
                         tracker
                     }))
                 }
-            }
+            },
         }
     }
 
-    fn poll_listener(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<TrackedChannel<S::Item, K>, K>>> {
+    fn poll_listener(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<TrackedChannel<S::Item, K>, K>>> {
         match ready!(self.listener_pin_mut().poll_next_unpin(cx)) {
             Some(codec) => Poll::Ready(Some(self.handle_new_channel(codec))),
             None => Poll::Ready(None),
@@ -240,7 +235,7 @@ where
                 self_.key_counts.remove(&key);
                 self_.key_counts.compact(0.1);
                 Poll::Ready(())
-            }
+            },
             None => unreachable!("Holding a copy of closed_channels and didn't close it."),
         }
     }
@@ -254,27 +249,21 @@ where
 {
     type Item = TrackedChannel<S::Item, K>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<TrackedChannel<S::Item, K>>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<TrackedChannel<S::Item, K>>> {
         loop {
-            match (
-                self.as_mut().poll_listener(cx),
-                self.as_mut().poll_closed_channels(cx),
-            ) {
+            match (self.as_mut().poll_listener(cx), self.as_mut().poll_closed_channels(cx)) {
                 (Poll::Ready(Some(Ok(channel))), _) => {
                     return Poll::Ready(Some(channel));
-                }
+                },
                 (Poll::Ready(Some(Err(_))), _) => {
                     continue;
-                }
+                },
                 (_, Poll::Ready(())) => continue,
                 (Poll::Pending, Poll::Pending) => return Poll::Pending,
                 (Poll::Ready(None), Poll::Pending) => {
                     trace!("Shutting down listener.");
                     return Poll::Ready(None);
-                }
+                },
             }
         }
     }
@@ -291,10 +280,7 @@ fn tracker_drop() {
     use assert_matches::assert_matches;
 
     let (tx, mut rx) = mpsc::unbounded_channel();
-    Tracker {
-        key: Some(1),
-        dropped_keys: tx,
-    };
+    Tracker { key: Some(1), dropped_keys: tx };
     assert_matches!(rx.poll_recv(&mut ctx()), Poll::Ready(Some(1)));
 }
 
@@ -307,10 +293,7 @@ fn tracked_channel_stream() {
     let (dropped_keys, _) = mpsc::unbounded_channel();
     let channel = TrackedChannel {
         inner: chan,
-        tracker: Arc::new(Tracker {
-            key: Some(1),
-            dropped_keys,
-        }),
+        tracker: Arc::new(Tracker { key: Some(1), dropped_keys }),
     };
 
     chan_tx.unbounded_send("test").unwrap();
@@ -327,10 +310,7 @@ fn tracked_channel_sink() {
     let (dropped_keys, _) = mpsc::unbounded_channel();
     let channel = TrackedChannel {
         inner: chan,
-        tracker: Arc::new(Tracker {
-            key: Some(1),
-            dropped_keys,
-        }),
+        tracker: Arc::new(Tracker { key: Some(1), dropped_keys }),
     };
 
     pin_mut!(channel);
@@ -372,22 +352,13 @@ fn channel_filter_handle_new_channel() {
     let (_, listener) = futures::channel::mpsc::unbounded();
     let filter = MaxChannelsPerKey::new(listener, 2, |chan: &TestChannel| chan.key);
     pin_mut!(filter);
-    let channel1 = filter
-        .as_mut()
-        .handle_new_channel(TestChannel { key: "key" })
-        .unwrap();
+    let channel1 = filter.as_mut().handle_new_channel(TestChannel { key: "key" }).unwrap();
     assert_eq!(Arc::strong_count(&channel1.tracker), 1);
 
-    let channel2 = filter
-        .as_mut()
-        .handle_new_channel(TestChannel { key: "key" })
-        .unwrap();
+    let channel2 = filter.as_mut().handle_new_channel(TestChannel { key: "key" }).unwrap();
     assert_eq!(Arc::strong_count(&channel1.tracker), 2);
 
-    assert_matches!(
-        filter.handle_new_channel(TestChannel { key: "key" }),
-        Err("key")
-    );
+    assert_matches!(filter.handle_new_channel(TestChannel { key: "key" }), Err("key"));
     drop(channel2);
     assert_eq!(Arc::strong_count(&channel1.tracker), 1);
 }
@@ -405,25 +376,16 @@ fn channel_filter_poll_listener() {
     let filter = MaxChannelsPerKey::new(listener, 2, |chan: &TestChannel| chan.key);
     pin_mut!(filter);
 
-    new_channels
-        .unbounded_send(TestChannel { key: "key" })
-        .unwrap();
-    let channel1 =
-        assert_matches!(filter.as_mut().poll_listener(&mut ctx()), Poll::Ready(Some(Ok(c))) => c);
+    new_channels.unbounded_send(TestChannel { key: "key" }).unwrap();
+    let channel1 = assert_matches!(filter.as_mut().poll_listener(&mut ctx()), Poll::Ready(Some(Ok(c))) => c);
     assert_eq!(Arc::strong_count(&channel1.tracker), 1);
 
-    new_channels
-        .unbounded_send(TestChannel { key: "key" })
-        .unwrap();
-    let _channel2 =
-        assert_matches!(filter.as_mut().poll_listener(&mut ctx()), Poll::Ready(Some(Ok(c))) => c);
+    new_channels.unbounded_send(TestChannel { key: "key" }).unwrap();
+    let _channel2 = assert_matches!(filter.as_mut().poll_listener(&mut ctx()), Poll::Ready(Some(Ok(c))) => c);
     assert_eq!(Arc::strong_count(&channel1.tracker), 2);
 
-    new_channels
-        .unbounded_send(TestChannel { key: "key" })
-        .unwrap();
-    let key =
-        assert_matches!(filter.as_mut().poll_listener(&mut ctx()), Poll::Ready(Some(Err(k))) => k);
+    new_channels.unbounded_send(TestChannel { key: "key" }).unwrap();
+    let key = assert_matches!(filter.as_mut().poll_listener(&mut ctx()), Poll::Ready(Some(Err(k))) => k);
     assert_eq!(key, "key");
     assert_eq!(Arc::strong_count(&channel1.tracker), 2);
 }
@@ -441,18 +403,12 @@ fn channel_filter_poll_closed_channels() {
     let filter = MaxChannelsPerKey::new(listener, 2, |chan: &TestChannel| chan.key);
     pin_mut!(filter);
 
-    new_channels
-        .unbounded_send(TestChannel { key: "key" })
-        .unwrap();
-    let channel =
-        assert_matches!(filter.as_mut().poll_listener(&mut ctx()), Poll::Ready(Some(Ok(c))) => c);
+    new_channels.unbounded_send(TestChannel { key: "key" }).unwrap();
+    let channel = assert_matches!(filter.as_mut().poll_listener(&mut ctx()), Poll::Ready(Some(Ok(c))) => c);
     assert_eq!(filter.key_counts.len(), 1);
 
     drop(channel);
-    assert_matches!(
-        filter.as_mut().poll_closed_channels(&mut ctx()),
-        Poll::Ready(())
-    );
+    assert_matches!(filter.as_mut().poll_closed_channels(&mut ctx()), Poll::Ready(()));
     assert!(filter.key_counts.is_empty());
 }
 
@@ -469,9 +425,7 @@ fn channel_filter_stream() {
     let filter = MaxChannelsPerKey::new(listener, 2, |chan: &TestChannel| chan.key);
     pin_mut!(filter);
 
-    new_channels
-        .unbounded_send(TestChannel { key: "key" })
-        .unwrap();
+    new_channels.unbounded_send(TestChannel { key: "key" }).unwrap();
     let channel = assert_matches!(filter.as_mut().poll_next(&mut ctx()), Poll::Ready(Some(c)) => c);
     assert_eq!(filter.key_counts.len(), 1);
 

@@ -5,10 +5,8 @@ pub use round_robin::RoundRobin;
 
 /// Provides a stub that load-balances with a simple round-robin strategy.
 mod round_robin {
-    use crate::{
-        client::{stub, RpcError},
-        context,
-    };
+    use crate::client::{stub, RpcError};
+    use crate::context;
     use cycle::AtomicCycle;
 
     impl<Stub> stub::Stub for RoundRobin<Stub>
@@ -18,11 +16,7 @@ mod round_robin {
         type Req = Stub::Req;
         type Resp = Stub::Resp;
 
-        async fn call(
-            &self,
-            ctx: context::Context,
-            request: Self::Req,
-        ) -> Result<Stub::Resp, RpcError> {
+        async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Stub::Resp, RpcError> {
             let next = self.stubs.next();
             next.call(ctx, request).await
         }
@@ -40,17 +34,13 @@ mod round_robin {
     {
         /// Returns a new RoundRobin stub.
         pub fn new(stubs: Vec<Stub>) -> Self {
-            Self {
-                stubs: AtomicCycle::new(stubs),
-            }
+            Self { stubs: AtomicCycle::new(stubs) }
         }
     }
 
     mod cycle {
-        use std::sync::{
-            atomic::{AtomicUsize, Ordering},
-            Arc,
-        };
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
 
         /// Cycles endlessly and atomically over a collection of elements of type T.
         #[derive(Clone, Debug)]
@@ -64,10 +54,7 @@ mod round_robin {
 
         impl<T> AtomicCycle<T> {
             pub fn new(elements: Vec<T>) -> Self {
-                Self(Arc::new(State {
-                    elements,
-                    next: Default::default(),
-                }))
+                Self(Arc::new(State { elements, next: Default::default() }))
             }
 
             pub fn next(&self) -> &T {
@@ -98,15 +85,11 @@ mod round_robin {
 /// Each request is hashed, then mapped to a stub based on the hash. Equivalent requests will use
 /// the same stub.
 mod consistent_hash {
-    use crate::{
-        client::{stub, RpcError},
-        context,
-    };
-    use std::{
-        collections::hash_map::RandomState,
-        hash::{BuildHasher, Hash, Hasher},
-        num::TryFromIntError,
-    };
+    use crate::client::{stub, RpcError};
+    use crate::context;
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hash, Hasher};
+    use std::num::TryFromIntError;
 
     impl<Stub, S> stub::Stub for ConsistentHash<Stub, S>
     where
@@ -117,11 +100,7 @@ mod consistent_hash {
         type Req = Stub::Req;
         type Resp = Stub::Resp;
 
-        async fn call(
-            &self,
-            ctx: context::Context,
-            request: Self::Req,
-        ) -> Result<Stub::Resp, RpcError> {
+        async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Stub::Resp, RpcError> {
             let index = usize::try_from(self.hash_request(&request) % self.stubs_len).expect(
                 "invariant broken: stubs_len is not larger than a usize, \
                          so the hash modulo stubs_len should always fit in a usize",
@@ -181,15 +160,12 @@ mod consistent_hash {
     #[cfg(test)]
     mod tests {
         use super::ConsistentHash;
-        use crate::{
-            client::stub::{mock::Mock, Stub},
-            context,
-        };
-        use std::{
-            collections::HashMap,
-            hash::{BuildHasher, Hash, Hasher},
-            rc::Rc,
-        };
+        use crate::client::stub::mock::Mock;
+        use crate::client::stub::Stub;
+        use crate::context;
+        use std::collections::HashMap;
+        use std::hash::{BuildHasher, Hash, Hasher};
+        use std::rc::Rc;
 
         #[tokio::test]
         async fn test() -> anyhow::Result<()> {

@@ -1,11 +1,8 @@
 //! Provides a Stub trait, implemented by types that can call remote services.
 
-use crate::{
-    client::{Channel, RpcError},
-    context,
-    server::Serve,
-    RequestName,
-};
+use crate::client::{Channel, RpcError};
+use crate::server::Serve;
+use crate::{context, RequestName};
 
 pub mod load_balance;
 pub mod retry;
@@ -24,8 +21,7 @@ pub trait Stub {
     type Resp;
 
     /// Calls a remote service.
-    async fn call(&self, ctx: context::Context, request: Self::Req)
-        -> Result<Self::Resp, RpcError>;
+    async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Self::Resp, RpcError>;
 }
 
 impl<Req, Resp> Stub for Channel<Req, Resp>

@@ -5,11 +5,9 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-use std::{
-    collections::HashMap,
-    hash::{BuildHasher, Hash},
-    time::{Duration, Instant},
-};
+use std::collections::HashMap;
+use std::hash::{BuildHasher, Hash};
+use std::time::{Duration, Instant};
 
 #[cfg(feature = "serde1")]
 #[cfg_attr(docsrs, doc(cfg(feature = "serde1")))]

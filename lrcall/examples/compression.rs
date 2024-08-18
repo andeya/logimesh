@@ -5,17 +5,19 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
-use futures::{prelude::*, Sink, SinkExt, Stream, StreamExt, TryStreamExt};
+use flate2::read::DeflateDecoder;
+use flate2::write::DeflateEncoder;
+use flate2::Compression;
+use futures::prelude::*;
+use futures::{Sink, SinkExt, Stream, StreamExt, TryStreamExt};
+use lrcall::serde_transport::tcp;
+use lrcall::server::{BaseChannel, Channel};
+use lrcall::tokio_serde::formats::Bincode;
+use lrcall::{client, context};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
-use std::{io, io::Read, io::Write};
-use lrcall::{
-    client, context,
-    serde_transport::tcp,
-    server::{BaseChannel, Channel},
-    tokio_serde::formats::Bincode,
-};
+use std::io;
+use std::io::{Read, Write};
 
 /// Type of compression that should be enabled on the request. The transport is free to ignore this.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize, Serialize)]
@@ -26,10 +28,7 @@ pub enum CompressionAlgorithm {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum CompressedMessage<T> {
     Uncompressed(T),
-    Compressed {
-        algorithm: CompressionAlgorithm,
-        payload: ByteBuf,
-    },
+    Compressed { algorithm: CompressionAlgorithm, payload: ByteBuf },
 }
 
 #[derive(Deserialize, Serialize)]
@@ -59,25 +58,20 @@ where
     match message {
         CompressedMessage::Compressed { algorithm, payload } => {
             if algorithm != CompressionAlgorithm::Deflate {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Compression algorithm {algorithm:?} not supported"),
-                ));
+                return Err(io::Error::new(io::ErrorKind::InvalidData, format!("Compression algorithm {algorithm:?} not supported")));
             }
             let mut deflater = DeflateDecoder::new(payload.as_slice());
             let mut payload = ByteBuf::new();
             deflater.read_to_end(&mut payload)?;
             let message = deserialize(payload)?;
             Ok(message)
-        }
+        },
         CompressedMessage::Uncompressed(message) => Ok(message),
     }
 }
 
 fn serialize<T: Serialize>(t: T) -> io::Result<ByteBuf> {
-    bincode::serialize(&t)
-        .map(ByteBuf::from)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    bincode::serialize(&t).map(ByteBuf::from).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 fn deserialize<D>(message: ByteBuf) -> io::Result<D>
@@ -88,8 +82,7 @@ where
 }
 
 fn add_compression<In, Out>(
-    transport: impl Stream<Item = io::Result<CompressedMessage<In>>>
-        + Sink<CompressedMessage<Out>, Error = io::Error>,
+    transport: impl Stream<Item = io::Result<CompressedMessage<In>>> + Sink<CompressedMessage<Out>, Error = io::Error>,
 ) -> impl Stream<Item = io::Result<In>> + Sink<Out, Error = io::Error>
 where
     Out: Serialize,
@@ -122,18 +115,12 @@ async fn main() -> anyhow::Result<()> {
     let addr = incoming.local_addr();
     tokio::spawn(async move {
         let transport = incoming.next().await.unwrap().unwrap();
-        BaseChannel::with_defaults(add_compression(transport))
-            .execute(HelloServer.serve())
-            .for_each(spawn)
-            .await;
+        BaseChannel::with_defaults(add_compression(transport)).execute(HelloServer.serve()).for_each(spawn).await;
     });
 
     let transport = tcp::connect(addr, Bincode::default).await?;
     let client = WorldClient::new(client::Config::default(), add_compression(transport)).spawn();
 
-    println!(
-        "{}",
-        client.hello(context::current(), "friend".into()).await?
-    );
+    println!("{}", client.hello(context::current(), "friend".into()).await?);
     Ok(())
 }
