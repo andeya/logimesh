@@ -10,7 +10,7 @@ authors = [
     "Adam Wright <adam.austin.wright@gmail.com>",
     "Tim Kuehn <timothy.j.kuehn@gmail.com>",
 ]
-license = "MIT"
+license.workspace = true
 rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
