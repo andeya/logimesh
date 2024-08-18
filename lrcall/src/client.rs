@@ -585,8 +585,8 @@ mod tests {
     use super::{cancellations, Channel, DispatchRequest, RequestDispatch, ResponseGuard, RpcError};
     use crate::client::in_flight_requests::InFlightRequests;
     use crate::client::Config;
+    use crate::context::current;
     use crate::context::CallType::RPC;
-    use crate::context::{self, current};
     use crate::transport::channel::UnboundedChannel;
     use crate::transport::{self};
     use crate::{ChannelError, ClientMessage, Response};
