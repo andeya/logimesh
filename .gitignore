@@ -18,6 +18,7 @@ Cargo.lock
 
 /target
 
+.DS_Store
 
 # IDE
 
