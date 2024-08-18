@@ -371,8 +371,9 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
     let methods = rpcs.iter().map(|rpc| &rpc.ident).collect::<Vec<_>>();
     let request_names = methods.iter().map(|m| format!("{ident}.{m}")).collect::<Vec<_>>();
 
-    let code = ServiceGenerator {
+    ServiceGenerator {
         service_ident: ident,
+        client_stub_ident: &format_ident!("{}Stub", ident),
         server_ident: &format_ident!("Serve{}", ident),
         client_ident: &format_ident!("{}Client", ident),
         request_ident: &format_ident!("{}Request", ident),
@@ -397,15 +398,15 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
         derives: derives.as_ref(),
         warnings: &derive_meta.warnings,
     }
-    .into_token_stream();
-    // println!("{}", code.to_string());
-    code.into()
+    .into_token_stream()
+    .into()
 }
 
 // Things needed to generate the service items: trait, serve impl, request/response enums, and
 // the client stub.
 struct ServiceGenerator<'a> {
     service_ident: &'a Ident,
+    client_stub_ident: &'a Ident,
     server_ident: &'a Ident,
     client_ident: &'a Ident,
     request_ident: &'a Ident,
@@ -433,6 +434,9 @@ impl<'a> ServiceGenerator<'a> {
             vis,
             return_types,
             service_ident,
+            client_stub_ident,
+            request_ident,
+            response_ident,
             server_ident,
             ..
         } = self;
@@ -444,6 +448,7 @@ impl<'a> ServiceGenerator<'a> {
             }
         });
 
+        let stub_doc = format!("The stub trait for service [`{service_ident}`].");
         quote! {
             #( #attrs )*
             #vis trait #service_ident: ::core::marker::Sized {
@@ -454,6 +459,15 @@ impl<'a> ServiceGenerator<'a> {
                 fn serve(self) -> #server_ident<Self> {
                     #server_ident { service: self }
                 }
+            }
+
+            #[doc = #stub_doc]
+            #vis trait #client_stub_ident: ::lrcall::client::stub::Stub<Req = #request_ident, Resp = #response_ident> {
+            }
+
+            impl<S> #client_stub_ident for S
+                where S: ::lrcall::client::stub::Stub<Req = #request_ident, Resp = #response_ident>
+            {
             }
         }
     }
@@ -583,16 +597,14 @@ impl<'a> ServiceGenerator<'a> {
             #[derive(Clone, Debug)]
             /// The client stub that makes RPC calls to the server. All request methods return
             /// [Futures](::core::future::Future).
-            #vis struct #client_ident<S> {
-                local_service: S,
-                rpc_client: ::lrcall::client::Channel<#request_ident, #response_ident>,
-            }
+            #vis struct #client_ident<
+                Stub = ::lrcall::client::Channel<#request_ident, #response_ident>
+            >(Stub);
         }
     }
 
     fn impl_client_new(&self) -> TokenStream2 {
         let &Self {
-            service_ident,
             client_ident,
             vis,
             request_ident,
@@ -600,32 +612,41 @@ impl<'a> ServiceGenerator<'a> {
             ..
         } = self;
 
-        let code = quote! {
-            impl<S: #service_ident + Clone> #client_ident<S> {
+        quote! {
+            impl #client_ident {
                 /// Returns a new client stub that sends requests over the given transport.
-                #vis fn new<T>(local_service: S, config: ::lrcall::client::Config, transport: T) -> Self
+                #vis fn new<T>(config: ::lrcall::client::Config, transport: T)
+                    -> ::lrcall::client::NewClient<
+                        Self,
+                        ::lrcall::client::RequestDispatch<#request_ident, #response_ident, T>
+                    >
                 where
-                    T: ::lrcall::Transport<::lrcall::ClientMessage<#request_ident>, ::lrcall::Response<#response_ident>> + 'static + Send,
+                    T: ::lrcall::Transport<::lrcall::ClientMessage<#request_ident>, ::lrcall::Response<#response_ident>>
                 {
                     let new_client = ::lrcall::client::new(config, transport);
                     ::lrcall::client::NewClient {
-                        client: #client_ident{
-                            local_service,
-                            rpc_client: new_client.client,
-                        },
+                        client: #client_ident(new_client.client),
                         dispatch: new_client.dispatch,
                     }
-                    .spawn()
                 }
             }
-        };
-        // println!("{}", code.to_string());
-        code
+
+            impl<Stub> ::core::convert::From<Stub> for #client_ident<Stub>
+                where Stub: ::lrcall::client::stub::Stub<
+                    Req = #request_ident,
+                    Resp = #response_ident>
+            {
+                /// Returns a new client stub that sends requests over the given transport.
+                fn from(stub: Stub) -> Self {
+                    #client_ident(stub)
+                }
+
+            }
+        }
     }
 
     fn impl_client_rpc_methods(&self) -> TokenStream2 {
         let &Self {
-            service_ident,
             client_ident,
             request_ident,
             response_ident,
@@ -639,30 +660,29 @@ impl<'a> ServiceGenerator<'a> {
             ..
         } = self;
 
-        let code = quote! {
-            impl<S: #service_ident + Clone> #client_ident<S> {
+        quote! {
+            impl<Stub> #client_ident<Stub>
+                where Stub: ::lrcall::client::stub::Stub<
+                    Req = #request_ident,
+                    Resp = #response_ident>
+            {
                 #(
                     #[allow(unused)]
                     #( #method_attrs )*
-                    #vis async fn #method_idents(&self, ctx: ::lrcall::context::Context, #( #args ),*)
-                        -> ::core::result::Result<#return_types, ::lrcall::client::RpcError> {
-                        match ctx.call_type {
-                            ::lrcall::context::CallType::Local => Ok(self.local_service.clone().#method_idents(ctx, #( #arg_pats ),*).await),
-                            ::lrcall::context::CallType::RPC => {
-                                let request = #request_ident::#camel_case_idents { #( #arg_pats ),* };
-                                let resp = self.rpc_client.call(ctx, request);
-                                match resp.await? {
-                                    #response_ident::#camel_case_idents(msg) => ::core::result::Result::Ok(msg),
-                                    _ => ::core::unreachable!(),
-                                }
-                            },
+                    #vis fn #method_idents(&self, ctx: ::lrcall::context::Context, #( #args ),*)
+                        -> impl ::core::future::Future<Output = ::core::result::Result<#return_types, ::lrcall::client::RpcError>> + '_ {
+                        let request = #request_ident::#camel_case_idents { #( #arg_pats ),* };
+                        let resp = self.0.call(ctx, request);
+                        async move {
+                            match resp.await? {
+                                #response_ident::#camel_case_idents(msg) => ::core::result::Result::Ok(msg),
+                                _ => ::core::unreachable!(),
+                            }
                         }
                     }
                 )*
             }
-        };
-        // println!("{}", code.to_string());
-        code
+        }
     }
 
     fn emit_warnings(&self) -> TokenStream2 {

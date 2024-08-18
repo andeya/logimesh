@@ -106,7 +106,12 @@ pub fn current(call_type: CallType) -> Context {
     Context::current(call_type)
 }
 
-/// Returns the context for the current RPC request, or a default Context if no request is active.
+/// Returns the context for the current local request, or a default local Context if no request is active.
+pub fn local_current() -> Context {
+    Context::current(CallType::Local)
+}
+
+/// Returns the context for the current RPC request, or a default RPC Context if no request is active.
 pub fn rpc_current() -> Context {
     Context::current(CallType::RPC)
 }

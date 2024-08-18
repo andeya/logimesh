@@ -25,4 +25,4 @@ Cargo.lock
 /.idea
 /.vscode
 
-/examples/expand.rs
+/examples/expand*.rs

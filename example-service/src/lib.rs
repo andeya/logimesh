@@ -5,7 +5,12 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
+use lrcall::context;
 use opentelemetry::trace::TracerProvider as _;
+use rand::distributions::{Distribution, Uniform};
+use rand::thread_rng;
+use std::time::Duration;
+use tokio::time;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::prelude::*;
 
@@ -40,4 +45,17 @@ pub fn init_tracing(service_name: &'static str) -> anyhow::Result<()> {
         .try_init()?;
 
     Ok(())
+}
+
+// This is the type that implements the generated World trait. It is the business logic
+// and is used to start the server.
+#[derive(Clone)]
+pub struct HelloServer;
+
+impl World for HelloServer {
+    async fn hello(self, ctx: context::Context, name: String) -> String {
+        let sleep_time = Duration::from_millis(Uniform::new_inclusive(1, 10).sample(&mut thread_rng()));
+        time::sleep(sleep_time).await;
+        format!("Hello, {name}! context: {:?}", ctx)
+    }
 }
