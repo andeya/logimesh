@@ -58,7 +58,7 @@ where
     Stub: AddStub + Clone + Send + Sync + 'static,
 {
     async fn double(self, _: context::Context, x: i32) -> Result<i32, String> {
-        self.add_client.add(context::current(), x, x).await.map_err(|e| e.to_string())
+        self.add_client.add(context::rpc_current(), x, x).await.map_err(|e| e.to_string())
     }
 }
 
@@ -151,7 +151,7 @@ async fn main() -> anyhow::Result<()> {
     let to_double_server = lrcall::serde_transport::tcp::connect(addr, Json::default).await?;
     let double_client = double::DoubleClient::new(client::Config::default(), to_double_server).spawn();
 
-    let ctx = context::current();
+    let ctx = context::rpc_current();
     for _ in 1..=5 {
         tracing::info!("{:?}", double_client.double(ctx, 1).await?);
     }

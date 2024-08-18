@@ -37,29 +37,15 @@ async fn main() -> anyhow::Result<()> {
     );
     let api = WorldAPI::new(local_service, client::Config::default(), client_transport);
 
-    let hello = api.hello(Context::current(false), "Stim".to_string()).await?;
+    let hello = api.hello(context::Context::current(context::CallType::Local), "Stim".to_string()).await?;
 
     println!("{hello}");
 
     Ok(())
 }
-
 struct WorldAPI<LS> {
     client: WorldClient<lrcall::client::Channel<WorldRequest, WorldResponse>>,
     local_service: LS,
-}
-
-struct Context {
-    pub rpc: context::Context,
-    pub is_rpc: bool,
-}
-impl Context {
-    fn current(is_rpc: bool) -> Self {
-        Context {
-            rpc: context::Context::current(),
-            is_rpc,
-        }
-    }
 }
 
 impl<LS> WorldAPI<LS>
@@ -75,11 +61,10 @@ where
             local_service: local_server,
         }
     }
-    async fn hello(&self, ctx: Context, name: String) -> ::core::result::Result<String, ::lrcall::client::RpcError> {
-        if ctx.is_rpc {
-            self.client.hello(ctx.rpc, name).await
-        } else {
-            Ok(self.local_service.clone().hello(ctx.rpc, name).await)
+    async fn hello(&self, ctx: context::Context, name: String) -> ::core::result::Result<String, ::lrcall::client::RpcError> {
+        match ctx.call_type {
+            context::CallType::Local => Ok(self.local_service.clone().hello(ctx, name).await),
+            context::CallType::RPC => self.client.hello(ctx, name).await,
         }
     }
 }

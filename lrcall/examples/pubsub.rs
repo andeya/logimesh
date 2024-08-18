@@ -178,7 +178,7 @@ impl Publisher {
 
     async fn initialize_subscription(&mut self, subscriber_addr: SocketAddr, subscriber: subscriber::SubscriberClient) {
         // Populate the topics
-        if let Ok(topics) = subscriber.topics(context::current()).await {
+        if let Ok(topics) = subscriber.topics(context::rpc_current()).await {
             self.clients.lock().unwrap().insert(subscriber_addr, Subscription { topics: topics.clone() });
 
             info!(%subscriber_addr, ?topics, "subscribed to new topics");
@@ -223,7 +223,7 @@ impl publisher::Publisher for Publisher {
         };
         let mut publications = Vec::new();
         for client in subscribers.values_mut() {
-            publications.push(client.receive(context::current(), topic.clone(), message.clone()));
+            publications.push(client.receive(context::rpc_current(), topic.clone(), message.clone()));
         }
         // Ignore failing subscribers. In a real pubsub, you'd want to continually retry until
         // subscribers ack. Of course, a lot would be different in a real pubsub :)
@@ -277,15 +277,15 @@ async fn main() -> anyhow::Result<()> {
 
     let publisher = publisher::PublisherClient::new(client::Config::default(), tcp::connect(addrs.publisher, Json::default).await?).spawn();
 
-    publisher.publish(context::current(), "calculus".into(), "sqrt(2)".into()).await?;
+    publisher.publish(context::rpc_current(), "calculus".into(), "sqrt(2)".into()).await?;
 
-    publisher.publish(context::current(), "cool shorts".into(), "hello to all".into()).await?;
+    publisher.publish(context::rpc_current(), "cool shorts".into(), "hello to all".into()).await?;
 
-    publisher.publish(context::current(), "history".into(), "napoleon".to_string()).await?;
+    publisher.publish(context::rpc_current(), "history".into(), "napoleon".to_string()).await?;
 
     drop(_subscriber0);
 
-    publisher.publish(context::current(), "cool shorts".into(), "hello to who?".into()).await?;
+    publisher.publish(context::rpc_current(), "cool shorts".into(), "hello to who?".into()).await?;
 
     opentelemetry::global::shutdown_tracer_provider();
     info!("done.");

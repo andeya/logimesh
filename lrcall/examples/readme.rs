@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     // The client has an RPC method for each RPC defined in the annotated trait. It takes the same
     // args as defined, with the addition of a Context, which is always the first arg. The Context
     // specifies a deadline and trace information which can be helpful in debugging requests.
-    let hello = client.hello(context::current(), "Stim".to_string()).await?;
+    let hello = client.hello(context::rpc_current(), "Stim".to_string()).await?;
 
     println!("{hello}");
 

@@ -335,7 +335,7 @@ where
     ///             tokio::spawn(request.execute(serve(|_, i| async move { Ok(i + 1) })));
     ///         }
     ///     });
-    ///     assert_eq!(client.call(context::current(), 1).await.unwrap(), 2);
+    ///     assert_eq!(client.call(context::rpc_current(), 1).await.unwrap(), 2);
     /// }
     /// ```
     fn requests(self) -> Requests<Self>
@@ -376,7 +376,7 @@ where
     ///                tokio::spawn(response);
     ///            }));
     ///     assert_eq!(
-    ///         client.call(context::current(), 1).await.unwrap(),
+    ///         client.call(context::rpc_current(), 1).await.unwrap(),
     ///         2);
     /// }
     /// ```
@@ -685,7 +685,7 @@ where
     ///            .for_each(|response| async move {
     ///                tokio::spawn(response);
     ///            }));
-    ///     assert_eq!(client.call(context::current(), 1).await.unwrap(), 2);
+    ///     assert_eq!(client.call(context::rpc_current(), 1).await.unwrap(), 2);
     /// }
     /// ```
     pub fn execute<S>(self, serve: S) -> impl Stream<Item = impl Future<Output = ()>>
@@ -791,7 +791,7 @@ impl<Req, Res> InFlightRequest<Req, Res> {
     ///         }
     ///
     ///     });
-    ///     assert_eq!(client.call(context::current(), 1).await.unwrap(), 2);
+    ///     assert_eq!(client.call(context::rpc_current(), 1).await.unwrap(), 2);
     /// }
     /// ```
     pub async fn execute<S>(self, serve: S)
@@ -917,7 +917,7 @@ mod tests {
 
     fn fake_request<Req>(req: Req) -> ClientMessage<Req> {
         ClientMessage::Request(Request {
-            context: context::current(),
+            context: context::rpc_current(),
             id: 0,
             message: req,
         })
@@ -930,7 +930,7 @@ mod tests {
     #[tokio::test]
     async fn test_serve() {
         let serve = serve(|_, i| async move { Ok(i) });
-        assert_matches!(serve.serve(context::current(), 7).await, Ok(7));
+        assert_matches!(serve.serve(context::rpc_current(), 7).await, Ok(7));
     }
 
     #[tokio::test]
@@ -951,7 +951,7 @@ mod tests {
             Ok(i)
         });
         let deadline_hook = serve.before(SetDeadline(some_time));
-        let mut ctx = context::current();
+        let mut ctx = context::rpc_current();
         ctx.deadline = some_other_time;
         deadline_hook.serve(ctx, 7).await?;
         Ok(())
@@ -982,7 +982,7 @@ mod tests {
         }
 
         let serve = serve(move |_: context::Context, i| async move { Ok(i) });
-        serve.before_and_after(PrintLatency::new()).serve(context::current(), 7).await?;
+        serve.before_and_after(PrintLatency::new()).serve(context::rpc_current(), 7).await?;
         Ok(())
     }
 
@@ -990,7 +990,7 @@ mod tests {
     async fn serve_before_error_aborts_request() -> anyhow::Result<()> {
         let serve = serve(|_, _| async { panic!("Shouldn't get here") });
         let deadline_hook = serve.before(|_: &mut context::Context, _: &i32| async { Err(ServerError::new(io::ErrorKind::Other, "oops".into())) });
-        let resp: Result<i32, _> = deadline_hook.serve(context::current(), 7).await;
+        let resp: Result<i32, _> = deadline_hook.serve(context::rpc_current(), 7).await;
         assert_matches!(resp, Err(_));
         Ok(())
     }
@@ -1003,14 +1003,14 @@ mod tests {
             .as_mut()
             .start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
         assert_matches!(
             channel.as_mut().start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: ()
             }),
             Err(AlreadyExistsError)
@@ -1026,7 +1026,7 @@ mod tests {
             .as_mut()
             .start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1034,7 +1034,7 @@ mod tests {
             .as_mut()
             .start_request(Request {
                 id: 1,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1054,7 +1054,7 @@ mod tests {
             .as_mut()
             .start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1080,7 +1080,7 @@ mod tests {
             .as_mut()
             .start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1113,7 +1113,7 @@ mod tests {
             .as_mut()
             .start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1133,7 +1133,7 @@ mod tests {
             .as_mut()
             .start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1182,7 +1182,7 @@ mod tests {
             .channel_pin_mut()
             .start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1196,7 +1196,7 @@ mod tests {
             .channel_pin_mut()
             .start_request(Request {
                 id: 1,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1214,7 +1214,7 @@ mod tests {
             .channel_pin_mut()
             .start_request(Request {
                 id: 0,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();
@@ -1226,7 +1226,7 @@ mod tests {
             .channel_pin_mut()
             .start_request(Request {
                 id: 1,
-                context: context::current(),
+                context: context::rpc_current(),
                 message: (),
             })
             .unwrap();

@@ -91,6 +91,7 @@ impl<Req, Resp> FakeChannel<io::Result<TrackedRequest<Req>>, Response<Resp>> {
                 context: context::Context {
                     deadline: Instant::now(),
                     trace_context: Default::default(),
+                    call_type: context::CallType::RPC,
                 },
                 id,
                 message,

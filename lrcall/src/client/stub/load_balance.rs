@@ -182,13 +182,13 @@ mod consistent_hash {
             )?;
 
             for _ in 0..2 {
-                let resp = stub.call(context::current(), 'a').await?;
+                let resp = stub.call(context::rpc_current(), 'a').await?;
                 assert_eq!(resp, 1);
 
-                let resp = stub.call(context::current(), 'b').await?;
+                let resp = stub.call(context::rpc_current(), 'b').await?;
                 assert_eq!(resp, 2);
 
-                let resp = stub.call(context::current(), 'c').await?;
+                let resp = stub.call(context::rpc_current(), 'c').await?;
                 assert_eq!(resp, 3);
             }
 

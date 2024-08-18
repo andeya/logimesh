@@ -34,7 +34,7 @@ async fn sequential() {
     let client = client::new(client::Config::default(), tx).spawn();
     let channel = BaseChannel::with_defaults(rx);
     tokio::spawn(channel.execute(lrcall::server::serve(|_, i: u32| async move { Ok(i + 1) })).for_each(|response| response));
-    assert_eq!(client.call(context::current(), 1).await.unwrap(), 2);
+    assert_eq!(client.call(context::rpc_current(), 1).await.unwrap(), 2);
 }
 
 #[tokio::test]
@@ -64,7 +64,7 @@ async fn dropped_channel_aborts_in_flight_requests() -> anyhow::Result<()> {
     tokio::spawn(async move {
         let client = LoopClient::new(client::Config::default(), tx).spawn();
 
-        let mut ctx = context::current();
+        let mut ctx = context::rpc_current();
         ctx.deadline = Instant::now() + Duration::from_secs(60 * 60);
         let _ = client.r#loop(ctx).await;
     });
@@ -105,9 +105,9 @@ async fn serde_tcp() -> anyhow::Result<()> {
     let transport = serde_transport::tcp::connect(addr, Json::default).await?;
     let client = ServiceClient::new(client::Config::default(), transport).spawn();
 
-    assert_matches!(client.add(context::current(), 1, 2).await, Ok(3));
+    assert_matches!(client.add(context::rpc_current(), 1, 2).await, Ok(3));
     assert_matches!(
-        client.hey(context::current(), "Tim".to_string()).await,
+        client.hey(context::rpc_current(), "Tim".to_string()).await,
         Ok(ref s) if s == "Hey, Tim."
     );
 
@@ -138,8 +138,8 @@ async fn serde_uds() -> anyhow::Result<()> {
     let client = ServiceClient::new(client::Config::default(), transport).spawn();
 
     // Save results using socket so we can clean the socket even if our test assertions fail
-    let res1 = client.add(context::current(), 1, 2).await;
-    let res2 = client.hey(context::current(), "Tim".to_string()).await;
+    let res1 = client.add(context::rpc_current(), 1, 2).await;
+    let res2 = client.hey(context::rpc_current(), "Tim".to_string()).await;
 
     assert_matches!(res1, Ok(3));
     assert_matches!(res2, Ok(ref s) if s == "Hey, Tim.");
@@ -148,7 +148,7 @@ async fn serde_uds() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn concurrent() -> anyhow::Result<()> {
+async fn conrpc_current() -> anyhow::Result<()> {
     let _ = tracing_subscriber::fmt::try_init();
 
     let (tx, rx) = channel::unbounded();
@@ -162,9 +162,9 @@ async fn concurrent() -> anyhow::Result<()> {
 
     let client = ServiceClient::new(client::Config::default(), tx).spawn();
 
-    let req1 = client.add(context::current(), 1, 2);
-    let req2 = client.add(context::current(), 3, 4);
-    let req3 = client.hey(context::current(), "Tim".to_string());
+    let req1 = client.add(context::rpc_current(), 1, 2);
+    let req2 = client.add(context::rpc_current(), 3, 4);
+    let req3 = client.hey(context::rpc_current(), "Tim".to_string());
 
     assert_matches!(req1.await, Ok(3));
     assert_matches!(req2.await, Ok(7));
@@ -188,9 +188,9 @@ async fn concurrent_join() -> anyhow::Result<()> {
 
     let client = ServiceClient::new(client::Config::default(), tx).spawn();
 
-    let req1 = client.add(context::current(), 1, 2);
-    let req2 = client.add(context::current(), 3, 4);
-    let req3 = client.hey(context::current(), "Tim".to_string());
+    let req1 = client.add(context::rpc_current(), 1, 2);
+    let req2 = client.add(context::rpc_current(), 3, 4);
+    let req3 = client.hey(context::rpc_current(), "Tim".to_string());
 
     let (resp1, resp2, resp3) = join!(req1, req2, req3);
     assert_matches!(resp1, Ok(3));
@@ -214,8 +214,8 @@ async fn concurrent_join_all() -> anyhow::Result<()> {
 
     let client = ServiceClient::new(client::Config::default(), tx).spawn();
 
-    let req1 = client.add(context::current(), 1, 2);
-    let req2 = client.add(context::current(), 3, 4);
+    let req1 = client.add(context::rpc_current(), 1, 2);
+    let req2 = client.add(context::rpc_current(), 3, 4);
 
     let responses = join_all(vec![req1, req2]).await;
     assert_matches!(responses[0], Ok(3));
@@ -251,8 +251,8 @@ async fn counter() -> anyhow::Result<()> {
     });
 
     let client = CounterClient::new(client::Config::default(), tx).spawn();
-    assert_matches!(client.count(context::current()).await, Ok(1));
-    assert_matches!(client.count(context::current()).await, Ok(2));
+    assert_matches!(client.count(context::rpc_current()).await, Ok(1));
+    assert_matches!(client.count(context::rpc_current()).await, Ok(2));
 
     Ok(())
 }

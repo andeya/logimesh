@@ -54,7 +54,7 @@ pub trait RequestHook: Serve {
     ///                 Ok(())
     ///             })
     ///     });
-    /// let response = serve.serve(context::current(), 1);
+    /// let response = serve.serve(context::rpc_current(), 1);
     /// assert!(block_on(response).is_err());
     /// ```
     fn before<Hook>(self, hook: Hook) -> HookThenServe<Self, Hook>
@@ -97,7 +97,7 @@ pub trait RequestHook: Serve {
     ///         future::ready(())
     ///     });
     ///
-    /// let response = serve.serve(context::current(), 1);
+    /// let response = serve.serve(context::rpc_current(), 1);
     /// assert!(block_on(response).is_err());
     /// ```
     fn after<Hook>(self, hook: Hook) -> ServeThenHook<Self, Hook>
@@ -148,7 +148,7 @@ pub trait RequestHook: Serve {
     /// let serve = serve(|_ctx, i| async move {
     ///         Ok(i + 1)
     ///     }).before_and_after(PrintLatency(Instant::now()));
-    /// let response = serve.serve(context::current(), 1);
+    /// let response = serve.serve(context::rpc_current(), 1);
     /// assert!(block_on(response).is_ok());
     /// ```
     fn before_and_after<Hook>(self, hook: Hook) -> HookThenServeThenHook<Self::Req, Self::Resp, Self, Hook>

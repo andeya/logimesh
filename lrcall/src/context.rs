@@ -35,6 +35,19 @@ pub struct Context {
     /// include the same `trace_id` as that included on the original request. This way,
     /// users can trace related actions across a distributed system.
     pub trace_context: trace::Context,
+    /// Indicates the type of the current call.
+    pub call_type: CallType,
+}
+
+/// Call type
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
+#[repr(u8)]
+pub enum CallType {
+    /// Locall call
+    Local = 0,
+    /// Remote procedure call
+    RPC = 1,
 }
 
 #[cfg(feature = "serde1")]
@@ -89,8 +102,13 @@ fn ten_seconds_from_now() -> Instant {
 }
 
 /// Returns the context for the current request, or a default Context if no request is active.
-pub fn current() -> Context {
-    Context::current()
+pub fn current(call_type: CallType) -> Context {
+    Context::current(call_type)
+}
+
+/// Returns the context for the current RPC request, or a default Context if no request is active.
+pub fn rpc_current() -> Context {
+    Context::current(CallType::RPC)
 }
 
 #[derive(Clone)]
@@ -104,11 +122,12 @@ impl Default for Deadline {
 
 impl Context {
     /// Returns the context for the current request, or a default Context if no request is active.
-    pub fn current() -> Self {
+    pub fn current(call_type: CallType) -> Self {
         let span = tracing::Span::current();
         Self {
             trace_context: trace::Context::try_from(&span).unwrap_or_else(|_| trace::Context::default()),
             deadline: span.context().get::<Deadline>().cloned().unwrap_or_default().0,
+            call_type,
         }
     }
 

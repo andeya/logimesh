@@ -162,8 +162,8 @@ mod tests {
 
         let client = client::new(client::Config::default(), client_channel).spawn();
 
-        let response1 = client.call(context::current(), "123".into()).await;
-        let response2 = client.call(context::current(), "abc".into()).await;
+        let response1 = client.call(context::rpc_current(), "123".into()).await;
+        let response2 = client.call(context::rpc_current(), "abc".into()).await;
 
         trace!("response1: {:?}, response2: {:?}", response1, response2);
 

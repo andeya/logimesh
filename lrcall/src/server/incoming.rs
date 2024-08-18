@@ -62,7 +62,7 @@ where
 ///         BaseChannel::new(server::Config::default(), rx)
 ///     }).execute(serve(|_, i| async move { Ok(i + 1) }));
 ///     tokio::spawn(spawn_incoming(incoming));
-///     assert_eq!(client.call(context::current(), 1).await.unwrap(), 2);
+///     assert_eq!(client.call(context::rpc_current(), 1).await.unwrap(), 2);
 /// }
 /// ```
 pub async fn spawn_incoming(incoming: impl Stream<Item = impl Stream<Item = impl Future<Output = ()> + Send + 'static> + Send + 'static>) {

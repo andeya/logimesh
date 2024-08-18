@@ -451,10 +451,7 @@ where
         let request = ClientMessage::Request(Request {
             id: request_id,
             message: request,
-            context: context::Context {
-                deadline: ctx.deadline,
-                trace_context: ctx.trace_context,
-            },
+            context: ctx.clone(),
         });
         self.in_flight_requests()
             .insert_request(request_id, ctx, span.clone(), response_completion)
@@ -588,6 +585,7 @@ mod tests {
     use super::{cancellations, Channel, DispatchRequest, RequestDispatch, ResponseGuard, RpcError};
     use crate::client::in_flight_requests::InFlightRequests;
     use crate::client::Config;
+    use crate::context::CallType::RPC;
     use crate::context::{self, current};
     use crate::transport::channel::UnboundedChannel;
     use crate::transport::{self};
@@ -612,7 +610,7 @@ mod tests {
         let cx = &mut Context::from_waker(noop_waker_ref());
         let (tx, mut rx) = oneshot::channel();
 
-        dispatch.in_flight_requests.insert_request(0, context::current(), Span::current(), tx).unwrap();
+        dispatch.in_flight_requests.insert_request(0, current(RPC), Span::current(), tx).unwrap();
         server_channel
             .send(Response {
                 request_id: 0,
@@ -775,7 +773,7 @@ mod tests {
         let (dispatch, channel, _server_channel) = set_up();
         drop(dispatch);
         // error on send
-        let resp = channel.call(current(), "hi".to_string()).await;
+        let resp = channel.call(current(RPC), "hi".to_string()).await;
         assert_matches!(resp, Err(RpcError::Shutdown));
     }
 
@@ -933,7 +931,7 @@ mod tests {
         |request| {
             let request_id = u64::try_from(channel.next_request_id.fetch_add(1, Ordering::Relaxed)).unwrap();
             let request = DispatchRequest {
-                ctx: context::current(),
+                ctx: current(RPC),
                 span: Span::current(),
                 request_id,
                 request: request.to_string(),
@@ -957,7 +955,7 @@ mod tests {
     ) -> ResponseGuard<'a, String> {
         let request_id = u64::try_from(channel.next_request_id.fetch_add(1, Ordering::Relaxed)).unwrap();
         let request = DispatchRequest {
-            ctx: context::current(),
+            ctx: current(RPC),
             span: Span::current(),
             request_id,
             request: request.to_string(),
