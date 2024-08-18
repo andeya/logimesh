@@ -139,7 +139,9 @@ async fn main() -> anyhow::Result<()> {
     let stream = connector.connect(domain, stream).await?;
 
     let transport = transport::new(codec_builder.new_framed(stream), Bincode::default());
-    let answer = PingServiceClient::new(Default::default(), transport).spawn().ping(lrcall::context::rpc_current()).await?;
+    let answer = PingServiceClient::<Service>::rpc_client((Default::default(), transport).into())
+        .ping(lrcall::context::rpc_current())
+        .await?;
 
     println!("ping answer: {answer}");
 

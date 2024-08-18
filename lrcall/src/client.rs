@@ -11,6 +11,7 @@ mod in_flight_requests;
 pub mod stub;
 
 use crate::cancellations::{cancellations, CanceledRequests, RequestCancellation};
+use crate::context::CallType;
 use crate::util::TimeUntil;
 use crate::{context, trace, ChannelError, ClientMessage, Request, RequestName, Response, ServerError, Transport};
 use futures::prelude::*;
@@ -107,10 +108,38 @@ impl<Req, Resp> Clone for Channel<Req, Resp> {
     }
 }
 
+/// Returns a channel and spawn the dispatch on the default executor.
+#[cfg(feature = "tokio1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio1")))]
+impl<Req, Resp, C, E> From<(Config, C)> for Channel<Req, Resp>
+where
+    Req: RequestName,
+    C: Transport<ClientMessage<Req>, Response<Resp>> + Send + 'static,
+    E: std::error::Error + Send + Sync + 'static,
+    RequestDispatch<Req, Resp, C>: Future<Output = Result<(), E>> + Send + 'static,
+{
+    fn from((config, transport): (Config, C)) -> Self {
+        Channel::spawn(config, transport)
+    }
+}
+
 impl<Req, Resp> Channel<Req, Resp>
 where
     Req: RequestName,
 {
+    /// Returns a channel and spawn the dispatch on the default executor.
+    #[cfg(feature = "tokio1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "tokio1")))]
+    #[inline]
+    pub fn spawn<C, E>(config: Config, transport: C) -> Self
+    where
+        C: Transport<ClientMessage<Req>, Response<Resp>> + Send + 'static,
+        E: std::error::Error + Send + Sync + 'static,
+        RequestDispatch<Req, Resp, C>: Future<Output = Result<(), E>> + Send + 'static,
+    {
+        new::<Req, Resp, C>(config, transport).spawn()
+    }
+
     /// Sends a request to the dispatch task to forward to the server, returning a [`Future`] that
     /// resolves to the response.
     #[tracing::instrument(
@@ -169,6 +198,9 @@ struct ResponseGuard<'a, Resp> {
 /// rather cross-cutting errors that can always occur.
 #[derive(thiserror::Error, Debug)]
 pub enum RpcError {
+    /// Unconfigured underlying client.
+    #[error("Unconfigured underlying {0:?} client")]
+    ClientUnconfigured(CallType),
     /// The client disconnected from the server.
     #[error("the connection to the server was already shutdown")]
     Shutdown,

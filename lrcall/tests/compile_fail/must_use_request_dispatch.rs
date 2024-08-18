@@ -10,6 +10,6 @@ fn main() {
 
     #[deny(unused_must_use)]
     {
-        WorldClient::new(client::Config::default(), client_transport).dispatch;
+        WorldClient::<HelloService>::rpc_client((client::Config::default(), client_transport).into()).dispatch;
     }
 }

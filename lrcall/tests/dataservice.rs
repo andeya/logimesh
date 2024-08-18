@@ -48,7 +48,7 @@ async fn test_call() -> anyhow::Result<()> {
     );
 
     let transport = serde_transport::tcp::connect(addr, Json::default).await?;
-    let client = ColorProtocolClient::new(client::Config::default(), transport).spawn();
+    let client = ColorProtocolClient::<ColorServer>::rpc_client((client::Config::default(), transport).into());
 
     let color = client.get_opposite_color(context::rpc_current(), TestData::White).await?;
     assert_eq!(color, TestData::Black);

@@ -13,9 +13,9 @@ pub trait World {
 // This is the type that implements the generated World trait. It is the business logic
 // and is used to start the server.
 #[derive(Clone, Debug)]
-pub struct HelloServer;
+pub struct HelloService;
 
-impl World for HelloServer {
+impl World for HelloService {
     async fn hello(self, _: context::Context, name: String) -> String {
         format!("Hello, {name}!")
     }
@@ -23,7 +23,7 @@ impl World for HelloServer {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let local_service = HelloServer;
+    let local_service = HelloService;
     let (client_transport, server_transport) = lrcall::transport::channel::unbounded();
 
     let server = server::BaseChannel::with_defaults(server_transport);
@@ -35,11 +35,13 @@ async fn main() -> anyhow::Result<()> {
                 tokio::spawn(response);
             }),
     );
-    let api = WorldClient::new(local_service, client::Config::default(), client_transport);
 
+    let api = WorldClient::rpc_client(WorldChannel::spawn(client::Config::default(), client_transport));
+    let hello = api.hello(context::Context::current(context::CallType::RPC), "Stim".to_string()).await?;
+    println!("RPC: {hello}");
+
+    let api = WorldClient::local_client(local_service);
     let hello = api.hello(context::Context::current(context::CallType::Local), "Stim".to_string()).await?;
-
-    println!("{hello}");
-
+    println!("Local: {hello}");
     Ok(())
 }

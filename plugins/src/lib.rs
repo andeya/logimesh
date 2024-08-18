@@ -373,6 +373,9 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let code = ServiceGenerator {
         service_ident: ident,
+        service_unimplemented_ident: &format_ident!("{}Unimplemented", ident),
+        client_stub_ident: &format_ident!("{}RpcStub", ident),
+        channel_ident: &format_ident!("{}Channel", ident),
         server_ident: &format_ident!("Serve{}", ident),
         client_ident: &format_ident!("{}Client", ident),
         request_ident: &format_ident!("{}Request", ident),
@@ -406,6 +409,9 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
 // the client stub.
 struct ServiceGenerator<'a> {
     service_ident: &'a Ident,
+    service_unimplemented_ident: &'a Ident,
+    client_stub_ident: &'a Ident,
+    channel_ident: &'a Ident,
     server_ident: &'a Ident,
     client_ident: &'a Ident,
     request_ident: &'a Ident,
@@ -428,11 +434,16 @@ struct ServiceGenerator<'a> {
 impl<'a> ServiceGenerator<'a> {
     fn trait_service(&self) -> TokenStream2 {
         let &Self {
+            service_unimplemented_ident,
+            channel_ident,
             attrs,
             rpcs,
             vis,
             return_types,
             service_ident,
+            client_stub_ident,
+            request_ident,
+            response_ident,
             server_ident,
             ..
         } = self;
@@ -444,8 +455,21 @@ impl<'a> ServiceGenerator<'a> {
             }
         });
 
+        let unimplemented_rpc_fns = rpcs.iter().zip(return_types.iter()).map(|(RpcMethod { attrs, ident, args, .. }, output)| {
+            quote! {
+                #( #attrs )*
+                #[allow(unused_variables)]
+                async fn #ident(self, context: ::lrcall::context::Context, #( #args ),*) -> #output {
+                    unimplemented!()
+                }
+            }
+        });
+
+        let stub_doc = format!("The stub trait for service [`{service_ident}`].");
+        let channel_doc = format!("The default {client_stub_ident} implementation.\nUsage: `{channel_ident}::spawn(config, transport)`");
         quote! {
             #( #attrs )*
+            #[allow(async_fn_in_trait)]
             #vis trait #service_ident: ::core::marker::Sized {
                 #( #rpc_fns )*
 
@@ -455,6 +479,25 @@ impl<'a> ServiceGenerator<'a> {
                     #server_ident { service: self }
                 }
             }
+
+            #[derive(Debug,Clone,Copy)]
+            struct #service_unimplemented_ident;
+
+            impl #service_ident for #service_unimplemented_ident {
+                #( #unimplemented_rpc_fns )*
+            }
+
+            #[doc = #stub_doc]
+            #vis trait #client_stub_ident: ::lrcall::client::stub::Stub<Req = #request_ident, Resp = #response_ident> {
+            }
+
+            impl<S> #client_stub_ident for S
+                where S: ::lrcall::client::stub::Stub<Req = #request_ident, Resp = #response_ident>
+            {
+            }
+
+            #[doc = #channel_doc]
+            #vis type #channel_ident = ::lrcall::client::Channel<#request_ident, #response_ident>;
         }
     }
 
@@ -571,21 +614,21 @@ impl<'a> ServiceGenerator<'a> {
 
     fn struct_client(&self) -> TokenStream2 {
         let &Self {
+            service_unimplemented_ident,
+            channel_ident,
             vis,
             client_ident,
-            request_ident,
-            response_ident,
             ..
         } = self;
 
         quote! {
-            #[allow(unused)]
+            #[allow(unused, private_interfaces)]
             #[derive(Clone, Debug)]
             /// The client stub that makes RPC calls to the server. All request methods return
             /// [Futures](::core::future::Future).
-            #vis struct #client_ident<S> {
-                local_service: S,
-                rpc_client: ::lrcall::client::Channel<#request_ident, #response_ident>,
+            #vis struct #client_ident<L=#service_unimplemented_ident, R=#channel_ident> {
+                local_service: ::core::option::Option<L>,
+                rpc_stub: ::core::option::Option<R>,
             }
         }
     }
@@ -593,39 +636,62 @@ impl<'a> ServiceGenerator<'a> {
     fn impl_client_new(&self) -> TokenStream2 {
         let &Self {
             service_ident,
+            service_unimplemented_ident,
+            channel_ident,
+            client_stub_ident,
             client_ident,
             vis,
-            request_ident,
-            response_ident,
             ..
         } = self;
 
         let code = quote! {
-            impl<S: #service_ident + Clone> #client_ident<S> {
-                /// Returns a new client stub that sends requests over the given transport.
-                #vis fn new<T>(local_service: S, config: ::lrcall::client::Config, transport: T) -> Self
-                where
-                    T: ::lrcall::Transport<::lrcall::ClientMessage<#request_ident>, ::lrcall::Response<#response_ident>> + 'static + Send,
-                {
-                    let new_client = ::lrcall::client::new(config, transport);
-                    ::lrcall::client::NewClient {
-                        client: #client_ident{
-                            local_service,
-                            rpc_client: new_client.client,
-                        },
-                        dispatch: new_client.dispatch,
+            impl<L, R> #client_ident<L, R>
+            where
+                L: #service_ident + ::core::clone::Clone,
+                R: #client_stub_ident,
+            {
+                /// Return a new full client stub that supports both local calls and remote calls.
+                #vis fn full_client(local_service: L, rpc_stub: R) -> Self {
+                    Self {
+                        local_service: ::core::option::Option::Some(local_service),
+                        rpc_stub: ::core::option::Option::Some(rpc_stub),
                     }
-                    .spawn()
+                }
+            }
+
+            impl<L> #client_ident<L, #channel_ident>
+            where
+                L: #service_ident + ::core::clone::Clone,
+            {
+                /// Return a new local client that supports local calls.
+                #vis fn local_client(local_service: L) -> Self {
+                    Self {
+                        local_service: ::core::option::Option::Some(local_service),
+                        rpc_stub: ::core::option::Option::None,
+                    }
+                }
+            }
+
+            impl<R> #client_ident<#service_unimplemented_ident, R>
+            where
+                R: #client_stub_ident,
+            {
+                /// Returns a new RPC client stub that supports remote calls.
+                #vis fn rpc_client(rpc_stub: R) -> Self {
+                    Self {
+                        local_service: ::core::option::Option::None,
+                        rpc_stub: ::core::option::Option::Some(rpc_stub),
+                    }
                 }
             }
         };
-        // println!("{}", code.to_string());
         code
     }
 
-    fn impl_client_rpc_methods(&self) -> TokenStream2 {
+    fn impl_client_methods(&self) -> TokenStream2 {
         let &Self {
             service_ident,
+            client_stub_ident,
             client_ident,
             request_ident,
             response_ident,
@@ -640,28 +706,38 @@ impl<'a> ServiceGenerator<'a> {
         } = self;
 
         let code = quote! {
-            impl<S: #service_ident + Clone> #client_ident<S> {
+            impl<L, R> #client_ident<L, R>
+            where
+                L: #service_ident + ::core::clone::Clone,
+                R: #client_stub_ident,
+            {
                 #(
                     #[allow(unused)]
                     #( #method_attrs )*
                     #vis async fn #method_idents(&self, ctx: ::lrcall::context::Context, #( #args ),*)
                         -> ::core::result::Result<#return_types, ::lrcall::client::RpcError> {
                         match ctx.call_type {
-                            ::lrcall::context::CallType::Local => Ok(self.local_service.clone().#method_idents(ctx, #( #arg_pats ),*).await),
+                            ::lrcall::context::CallType::Local => {
+                                if let ::core::option::Option::Some(local_service) = &self.local_service {
+                                    return ::core::result::Result::Ok(local_service.clone().#method_idents(ctx, #( #arg_pats ),*).await);
+                                }
+                            },
                             ::lrcall::context::CallType::RPC => {
-                                let request = #request_ident::#camel_case_idents { #( #arg_pats ),* };
-                                let resp = self.rpc_client.call(ctx, request);
-                                match resp.await? {
-                                    #response_ident::#camel_case_idents(msg) => ::core::result::Result::Ok(msg),
-                                    _ => ::core::unreachable!(),
+                                if let ::core::option::Option::Some(rpc_stub) = &self.rpc_stub {
+                                    let request = #request_ident::#camel_case_idents { #( #arg_pats ),* };
+                                    let resp = rpc_stub.call(ctx, request);
+                                    return match resp.await? {
+                                        #response_ident::#camel_case_idents(msg) => ::core::result::Result::Ok(msg),
+                                        _ => ::core::unreachable!(),
+                                    };
                                 }
                             },
                         }
+                        return ::core::result::Result::Err(::lrcall::client::RpcError::ClientUnconfigured(ctx.call_type));
                     }
                 )*
             }
         };
-        // println!("{}", code.to_string());
         code
     }
 
@@ -680,7 +756,7 @@ impl<'a> ToTokens for ServiceGenerator<'a> {
             self.enum_response(),
             self.struct_client(),
             self.impl_client_new(),
-            self.impl_client_rpc_methods(),
+            self.impl_client_methods(),
             self.emit_warnings(),
         ]);
     }

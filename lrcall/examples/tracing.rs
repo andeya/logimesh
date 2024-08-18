@@ -5,7 +5,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-use crate::add::{Add as AddService, AddStub};
+use crate::add::{Add as AddService, AddRpcStub};
 use crate::double::Double as DoubleService;
 use futures::future;
 use futures::prelude::*;
@@ -24,7 +24,7 @@ use tokio::net::TcpStream;
 use tracing_subscriber::prelude::*;
 
 pub mod add {
-    #[lrcall::service]
+    #[::lrcall::service]
     pub trait Add {
         /// Add two ints together.
         async fn add(x: i32, y: i32) -> i32;
@@ -55,7 +55,7 @@ struct DoubleServer<Stub> {
 
 impl<Stub> DoubleService for DoubleServer<Stub>
 where
-    Stub: AddStub + Clone + Send + Sync + 'static,
+    Stub: AddRpcStub + Clone + Send + Sync + 'static,
 {
     async fn double(self, _: context::Context, x: i32) -> Result<i32, String> {
         self.add_client.add(context::rpc_current(), x, x).await.map_err(|e| e.to_string())
@@ -137,7 +137,7 @@ async fn main() -> anyhow::Result<()> {
     let add_server = add_listener1.chain(add_listener2).map(BaseChannel::with_defaults);
     tokio::spawn(spawn_incoming(add_server.execute(server)));
 
-    let add_client = add::AddClient::from(make_stub([
+    let add_client = add::AddClient::<AddServer>::rpc_client(make_stub([
         lrcall::serde_transport::tcp::connect(addr1, Json::default).await?,
         lrcall::serde_transport::tcp::connect(addr2, Json::default).await?,
     ]));
@@ -145,11 +145,11 @@ async fn main() -> anyhow::Result<()> {
     let double_listener = lrcall::serde_transport::tcp::listen("localhost:0", Json::default).await?.filter_map(|r| future::ready(r.ok()));
     let addr = double_listener.get_ref().local_addr();
     let double_server = double_listener.map(BaseChannel::with_defaults).take(1);
-    let server = DoubleServer { add_client }.serve();
-    tokio::spawn(spawn_incoming(double_server.execute(server)));
+    let server: DoubleServer<AddServer> = DoubleServer { add_client };
+    tokio::spawn(spawn_incoming(double_server.execute(server.clone().serve())));
 
     let to_double_server = lrcall::serde_transport::tcp::connect(addr, Json::default).await?;
-    let double_client = double::DoubleClient::new(client::Config::default(), to_double_server).spawn();
+    let double_client = double::DoubleClient::<DoubleServer<AddServer>>::rpc_client((client::Config::default(), to_double_server).into());
 
     let ctx = context::rpc_current();
     for _ in 1..=5 {

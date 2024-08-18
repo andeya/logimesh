@@ -50,9 +50,9 @@ pub fn init_tracing(service_name: &'static str) -> anyhow::Result<()> {
 // This is the type that implements the generated World trait. It is the business logic
 // and is used to start the server.
 #[derive(Clone)]
-pub struct HelloServer;
+pub struct HelloService;
 
-impl World for HelloServer {
+impl World for HelloService {
     async fn hello(self, ctx: context::Context, name: String) -> String {
         let sleep_time = Duration::from_millis(Uniform::new_inclusive(1, 10).sample(&mut thread_rng()));
         time::sleep(sleep_time).await;

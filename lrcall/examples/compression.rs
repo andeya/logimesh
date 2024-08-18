@@ -97,9 +97,9 @@ pub trait World {
 }
 
 #[derive(Clone, Debug)]
-struct HelloServer;
+struct HelloService;
 
-impl World for HelloServer {
+impl World for HelloService {
     async fn hello(self, _: context::Context, name: String) -> String {
         format!("Hey, {name}!")
     }
@@ -115,11 +115,11 @@ async fn main() -> anyhow::Result<()> {
     let addr = incoming.local_addr();
     tokio::spawn(async move {
         let transport = incoming.next().await.unwrap().unwrap();
-        BaseChannel::with_defaults(add_compression(transport)).execute(HelloServer.serve()).for_each(spawn).await;
+        BaseChannel::with_defaults(add_compression(transport)).execute(HelloService.serve()).for_each(spawn).await;
     });
 
     let transport = tcp::connect(addr, Bincode::default).await?;
-    let client = WorldClient::new(client::Config::default(), add_compression(transport)).spawn();
+    let client = WorldClient::rpc_client(WorldChannel::spawn(client::Config::default(), add_compression(transport)));
 
     println!("{}", client.hello(context::rpc_current(), "friend".into()).await?);
     Ok(())
