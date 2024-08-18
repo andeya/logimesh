@@ -2,6 +2,7 @@
 
 `lrcall` is a Rust communication framework that is compatible with local invocations and RPC.
 
+Secondary development based on [tarpc](https://github.com/google/tarpc)
 
 [![Crates.io](https://img.shields.io/crates/v/lrcall)](https://crates.io/crates/lrcall)
 [![Documentation](https://shields.io/docsrs/lrcall)](https://docs.rs/lrcall)
