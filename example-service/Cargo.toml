@@ -14,20 +14,20 @@ repository.workspace = true
 categories.workspace = true
 
 [dependencies]
-anyhow = {workspace = true}
-clap = { version = "4.4.18", features = ["derive"] }
-log = "0.4"
-futures = "0.3"
-opentelemetry = { version = "0.24.0" }
-opentelemetry-otlp = "0.17.0"
-rand = "0.8"
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+log = { workspace = true }
+futures = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+rand = { workspace = true }
 lrcall = { workspace = true, features = ["full"] }
-tokio = {workspace = true, features = ["macros", "net", "rt-multi-thread"] }
-tracing = { version = "0.1" }
-tracing-opentelemetry = "0.25.0"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-opentelemetry_sdk = { version = "0.24.1", features = ["rt-tokio"] }
-opentelemetry-semantic-conventions = "0.16.0"
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread"] }
+tracing = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
+opentelemetry-semantic-conventions = { workspace = true }
 
 [lib]
 name = "service"

@@ -2,6 +2,7 @@
 name = "lrcall-plugins"
 description = "lrcall-plugins is Proc macros for lrcall."
 readme = "../lrcall/README.md"
+documentation = "https://docs.rs/lrcall-plugins"
 keywords = ["rpc", "network", "server", "api", "microservices"]
 categories = ["asynchronous", "network-programming"]
 authors = [
@@ -24,13 +25,13 @@ serde1 = []
 [dependencies]
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
-syn = { workspace = true , features = ["full", "extra-traits"]}
+syn = { workspace = true, features = ["full", "extra-traits"] }
 
 [lib]
 proc-macro = true
 
 [dev-dependencies]
-assert-type-eq = {workspace = true}
-futures = {workspace = true}
+assert-type-eq = { workspace = true }
+futures = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 lrcall = { workspace = true, features = ["serde1"] }

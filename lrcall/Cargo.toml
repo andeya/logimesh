@@ -2,6 +2,7 @@
 name = "lrcall"
 description = "lrcall is a Rust communication framework that is compatible with local invocations and RPC."
 readme = "README.md"
+documentation = "https://docs.rs/lrcall"
 keywords = ["rpc", "network", "server", "api", "microservices"]
 categories = ["asynchronous", "network-programming"]
 authors = [
