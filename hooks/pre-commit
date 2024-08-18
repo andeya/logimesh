@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Copyright 2016 Google Inc. All Rights Reserved.
+# Modifications Copyright Andeya Lee 2024
+# Based on original source code from Google Inc licensed under MIT
 #
 # Licensed under the MIT License, <LICENSE or http://opensource.org/licenses/MIT>.
 # This file may not be copied, modified, or distributed except according to those terms.
@@ -93,7 +94,7 @@ diff=""
 for file in $(git diff --name-only --cached);
 do
 	if [ ${file: -3} == ".rs" ]; then
-        diff="$diff$(rustfmt --edition 2018 --check $file)"
+        diff="$diff$(rustfmt --edition 2021 --check $file)"
         if [ $? != 0 ]; then
             FMTRESULT=1
         fi

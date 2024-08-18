@@ -1,4 +1,5 @@
-// Copyright 2018 Google LLC
+// Modifications Copyright Andeya Lee 2024
+// Based on original source code from Google LLC licensed under MIT
 //
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file or at
