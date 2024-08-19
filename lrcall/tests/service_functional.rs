@@ -134,8 +134,8 @@ async fn serde_uds() -> anyhow::Result<()> {
             .for_each(spawn),
     );
 
-    let transport = serde_transport::unix::connect(&sock, Json::default).await?;
-    let client = ServiceClient::new(client::Config::default(), transport);
+    let tx = serde_transport::unix::connect(&sock, Json::default).await?;
+    let client = ServiceClient::<UnimplService>::rpc_client(ServiceChannel::spawn(client::Config::default(), tx));
 
     // Save results using socket so we can clean the socket even if our test assertions fail
     let res1 = client.add(context::rpc_current(), 1, 2).await;
