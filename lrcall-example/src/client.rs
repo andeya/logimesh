@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Let the background span processor finish.
-    sleep(Duration::from_micros(1)).await;
+    sleep(Duration::from_micros(10)).await;
     opentelemetry::global::shutdown_tracer_provider();
 
     Ok(())

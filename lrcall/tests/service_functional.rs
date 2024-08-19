@@ -9,7 +9,7 @@ use lrcall::transport::channel;
 use std::time::{Duration, Instant};
 use tokio::join;
 
-#[lrcall_plugins::service]
+#[lrcall_macro::service]
 trait Service {
     async fn add(x: i32, y: i32) -> i32;
     async fn hey(name: String) -> String;
@@ -39,7 +39,7 @@ async fn sequential() {
 
 #[tokio::test]
 async fn dropped_channel_aborts_in_flight_requests() -> anyhow::Result<()> {
-    #[lrcall_plugins::service]
+    #[lrcall_macro::service]
     trait Loop {
         async fn r#loop();
     }

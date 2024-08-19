@@ -35,7 +35,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [workspace]
 resolver = "2"
-members = ["lrcall", "plugins", "example-service"]
+members = ["lrcall", "lrcall-macro", "lrcall-example"]
 [workspace.package]
 version = "0.1.1"
 edition = "2021"
@@ -58,7 +58,7 @@ keywords = [
 
 [workspace.dependencies]
 
-lrcall-plugins = { path = "./plugins" }
+lrcall-macro = { path = "./lrcall-macro" }
 lrcall = { path = "./lrcall" }
 
 # all dependencies

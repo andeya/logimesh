@@ -1,9 +1,9 @@
 [package]
-name = "lrcall-example-service"
+name = "lrcall-example"
 keywords = ["rpc", "network", "server", "microservices", "example"]
 readme = "./README.md"
 description = "An example server built on lrcall."
-documentation = "https://docs.rs/lrcall-example-service"
+documentation = "https://docs.rs/lrcall-example"
 version.workspace = true
 rust-version.workspace = true
 authors.workspace = true
