@@ -11,6 +11,8 @@ extern crate proc_macro2;
 extern crate quote;
 extern crate syn;
 
+use std::env;
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, ToTokens};
@@ -19,6 +21,8 @@ use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{braced, parenthesized, parse_macro_input, parse_quote, AttrStyle, Attribute, Expr, FnArg, Ident, Lit, LitBool, MetaNameValue, Pat, PatType, Path, ReturnType, Token, Type, Visibility};
+
+const ENV_LRCALL_MACRO_PRINT: &'static str = "LRCALL_MACRO_PRINT";
 
 /// Accumulates multiple errors into a result.
 /// Only use this for recoverable errors, i.e. non-parse errors. Fatal errors should early exit to
@@ -401,7 +405,9 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
         warnings: &derive_meta.warnings,
     }
     .into_token_stream();
-    // println!("{}", code.to_string());
+    if env::var(ENV_LRCALL_MACRO_PRINT).map_or(false, |v| v == "1") {
+        println!("{}", code.to_string());
+    }
     code.into()
 }
 
@@ -624,10 +630,10 @@ impl<'a> ServiceGenerator<'a> {
         quote! {
             #[allow(unused, private_interfaces)]
             #[derive(Clone, Debug)]
-            /// The client stub that makes RPC calls to the server. All request methods return
+            /// The client that makes LPC or RPC calls to the server. All request methods return
             /// [Futures](::core::future::Future).
             #vis struct #client_ident<L=#service_unimplemented_ident, R=#channel_ident> {
-                local_service: ::core::option::Option<L>,
+                lpc_service: ::core::option::Option<L>,
                 rpc_stub: ::core::option::Option<R>,
             }
         }
@@ -648,26 +654,26 @@ impl<'a> ServiceGenerator<'a> {
                 L: #service_ident + ::core::clone::Clone,
                 R: #client_stub_ident,
             {
-                /// Return a new full client stub that supports both local calls and remote calls.
-                #vis fn full_client(local_service: L, rpc_stub: R) -> Self {
+                /// Return a new full client that supports both local calls and remote calls.
+                #vis fn full_client(lpc_service: L, rpc_stub: R) -> Self {
                     Self {
-                        local_service: ::core::option::Option::Some(local_service),
+                        lpc_service: ::core::option::Option::Some(lpc_service),
                         rpc_stub: ::core::option::Option::Some(rpc_stub),
                     }
                 }
 
-                /// Return a new local client that supports local calls.
-                #vis fn local_client(local_service: L) -> Self {
+                /// Return a new LPC client that supports local calls.
+                #vis fn lpc_client(lpc_service: L) -> Self {
                     Self {
-                        local_service: ::core::option::Option::Some(local_service),
+                        lpc_service: ::core::option::Option::Some(lpc_service),
                         rpc_stub: ::core::option::Option::None,
                     }
                 }
 
-                /// Returns a new RPC client stub that supports remote calls.
+                /// Returns a new RPC client that supports remote calls.
                 #vis fn rpc_client(rpc_stub: R) -> Self {
                     Self {
-                        local_service: ::core::option::Option::None,
+                        lpc_service: ::core::option::Option::None,
                         rpc_stub: ::core::option::Option::Some(rpc_stub),
                     }
                 }
@@ -705,9 +711,9 @@ impl<'a> ServiceGenerator<'a> {
                     #vis async fn #method_idents(&self, ctx: ::lrcall::context::Context, #( #args ),*)
                         -> ::core::result::Result<#return_types, ::lrcall::client::RpcError> {
                         match ctx.call_type {
-                            ::lrcall::context::CallType::Local => {
-                                if let ::core::option::Option::Some(local_service) = &self.local_service {
-                                    return ::core::result::Result::Ok(local_service.clone().#method_idents(ctx, #( #arg_pats ),*).await);
+                            ::lrcall::context::CallType::LPC => {
+                                if let ::core::option::Option::Some(lpc_service) = &self.lpc_service {
+                                    return ::core::result::Result::Ok(lpc_service.clone().#method_idents(ctx, #( #arg_pats ),*).await);
                                 }
                             },
                             ::lrcall::context::CallType::RPC => {

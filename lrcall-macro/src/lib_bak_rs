@@ -595,7 +595,7 @@ impl<'a> ServiceGenerator<'a> {
         quote! {
             #[allow(unused)]
             #[derive(Clone, Debug)]
-            /// The client stub that makes RPC calls to the server. All request methods return
+            /// The client that makes LPC or RPC calls to the server. All request methods return
             /// [Futures](::core::future::Future).
             #vis struct #client_ident<
                 Stub = ::lrcall::client::Channel<#request_ident, #response_ident>

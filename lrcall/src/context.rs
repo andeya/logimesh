@@ -44,9 +44,9 @@ pub struct Context {
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u8)]
 pub enum CallType {
-    /// Locall call
-    Local = 0,
-    /// Remote procedure call
+    /// Local Procedure Call
+    LPC = 0,
+    /// Remote Procedure Call
     RPC = 1,
 }
 
@@ -106,9 +106,9 @@ pub fn current(call_type: CallType) -> Context {
     Context::current(call_type)
 }
 
-/// Returns the context for the current local request, or a default local Context if no request is active.
-pub fn local_current() -> Context {
-    Context::current(CallType::Local)
+/// Returns the context for the current LPC request, or a default LPC Context if no request is active.
+pub fn lpc_current() -> Context {
+    Context::current(CallType::LPC)
 }
 
 /// Returns the context for the current RPC request, or a default RPC Context if no request is active.

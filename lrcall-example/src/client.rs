@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     let hello = async move {
         // Send the request twice, just to be safe! ;)
         tokio::select! {
-            hello1 = client.hello(context::local_current(), format!("{}1", flags.name)) => { hello1 }
+            hello1 = client.hello(context::lpc_current(), format!("{}1", flags.name)) => { hello1 }
             hello2 = client.hello(context::rpc_current(), format!("{}2", flags.name)) => { hello2 }
         }
     }

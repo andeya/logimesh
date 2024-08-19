@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use futures::prelude::*;
 use lrcall::server::{self, Channel};
 use lrcall::{client, context};
@@ -64,10 +65,10 @@ pub enum WorldResponse {
 }
 #[allow(unused, private_interfaces)]
 #[derive(Clone, Debug)]
-#[doc = r" The client stub that makes RPC calls to the server. All request methods return"]
+#[doc = r" The client that makes LPC or RPC calls to the server. All request methods return"]
 #[doc = r" [Futures](::core::future::Future)."]
 pub struct WorldClient<L = UnimplWorld, R = WorldChannel> {
-    local_service: ::core::option::Option<L>,
+    lpc_service: ::core::option::Option<L>,
     rpc_stub: ::core::option::Option<R>,
 }
 impl<L, R> WorldClient<L, R>
@@ -75,24 +76,24 @@ where
     L: World + ::core::clone::Clone,
     R: WorldRpcStub,
 {
-    #[doc = r" Return a new full client stub that supports both local calls and remote calls."]
-    pub fn full_client(local_service: L, rpc_stub: R) -> Self {
+    #[doc = r" Return a new full client that supports both local calls and remote calls."]
+    pub fn full_client(lpc_service: L, rpc_stub: R) -> Self {
         Self {
-            local_service: ::core::option::Option::Some(local_service),
+            lpc_service: ::core::option::Option::Some(lpc_service),
             rpc_stub: ::core::option::Option::Some(rpc_stub),
         }
     }
-    #[doc = r" Return a new local client that supports local calls."]
-    pub fn local_client(local_service: L) -> Self {
+    #[doc = r" Return a new LPC client that supports local calls."]
+    pub fn lpc_client(lpc_service: L) -> Self {
         Self {
-            local_service: ::core::option::Option::Some(local_service),
+            lpc_service: ::core::option::Option::Some(lpc_service),
             rpc_stub: ::core::option::Option::None,
         }
     }
-    #[doc = r" Returns a new RPC client stub that supports remote calls."]
+    #[doc = r" Returns a new RPC client that supports remote calls."]
     pub fn rpc_client(rpc_stub: R) -> Self {
         Self {
-            local_service: ::core::option::Option::None,
+            lpc_service: ::core::option::Option::None,
             rpc_stub: ::core::option::Option::Some(rpc_stub),
         }
     }
@@ -106,9 +107,9 @@ where
     #[doc = " Returns a greeting for name."]
     pub async fn hello(&self, ctx: ::lrcall::context::Context, name: String) -> ::core::result::Result<String, ::lrcall::client::RpcError> {
         match ctx.call_type {
-            ::lrcall::context::CallType::Local => {
-                if let ::core::option::Option::Some(local_service) = &self.local_service {
-                    return ::core::result::Result::Ok(local_service.clone().hello(ctx, name).await);
+            ::lrcall::context::CallType::LPC => {
+                if let ::core::option::Option::Some(lpc_service) = &self.lpc_service {
+                    return ::core::result::Result::Ok(lpc_service.clone().hello(ctx, name).await);
                 }
             },
             ::lrcall::context::CallType::RPC => {
@@ -139,25 +140,45 @@ impl World for HelloService {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let local_service = HelloService;
+    let lpc_service = HelloService;
     let (client_transport, server_transport) = lrcall::transport::channel::unbounded();
 
     let server = server::BaseChannel::with_defaults(server_transport);
     tokio::spawn(
         server
-            .execute(local_service.clone().serve())
+            .execute(lpc_service.clone().serve())
             // Handle all requests concurrently.
             .for_each(|response| async move {
                 tokio::spawn(response);
             }),
     );
 
-    let api = WorldClient::<UnimplWorld>::rpc_client(WorldChannel::spawn(client::Config::default(), client_transport));
-    let hello = api.hello(context::Context::current(context::CallType::RPC), "Stim".to_string()).await?;
-    println!("RPC: {hello}");
+    let rpc_stub = WorldChannel::spawn(client::Config::default(), client_transport);
+    let local_ctx = context::Context::current(context::CallType::LPC);
+    let rpc_ctx = context::Context::current(context::CallType::RPC);
 
-    let api = WorldClient::<HelloService>::local_client(local_service);
-    let hello = api.hello(context::Context::current(context::CallType::Local), "Stim".to_string()).await?;
-    println!("Local: {hello}");
+    {
+        let api = WorldClient::full_client(HelloService, rpc_stub.clone());
+        let hello = api.hello(local_ctx, "Andeya---full-LPC".to_string()).await?;
+        println!("full-LPC: {hello}");
+        let hello = api.hello(rpc_ctx, "Andeya---full-RPC".to_string()).await?;
+        println!("full-RPC: {hello}");
+    }
+
+    {
+        let api = WorldClient::<UnimplWorld>::rpc_client(rpc_stub);
+        let unimplemented = api.hello(local_ctx, "Andeya---rpc-LPC".to_string()).await.map_or_else(|e| Ok(e), |t| Err(anyhow!(t)))?;
+        println!("rpc-LPC: {unimplemented:?}");
+        let hello = api.hello(rpc_ctx, "Andeya---rpc-RPC".to_string()).await?;
+        println!("rpc-RPC: {hello}");
+    }
+
+    {
+        let api = WorldClient::<HelloService>::lpc_client(lpc_service);
+        let hello = api.hello(local_ctx, "Andeya---lpc-LPC".to_string()).await?;
+        println!("lpc-LPC: {hello}");
+        let unimplemented = api.hello(rpc_ctx, "Andeya---lpc-RPC".to_string()).await.map_or_else(|e| Ok(e), |t| Err(anyhow!(t)))?;
+        println!("lpc-RPC: {unimplemented:?}");
+    }
     Ok(())
 }
