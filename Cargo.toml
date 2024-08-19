@@ -58,8 +58,8 @@ keywords = [
 
 [workspace.dependencies]
 
-lrcall-macro = { path = "./lrcall-macro" }
-lrcall = { path = "./lrcall" }
+lrcall-macro = { version = "0.1", path = "./lrcall-macro" }
+lrcall = { version = "0.1", path = "./lrcall" }
 
 # all dependencies
 proc-macro2 = "1.0"
