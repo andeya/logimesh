@@ -4,30 +4,28 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
-//! *Disclaimer*: This is not an official Google product.
 //!
-//! lrcall is an RPC framework for rust with a focus on ease of use. Defining a
+//! lrcall is a Rust procedure call framework that is compatible with local and remote procedure calls.
+//! And lrcall focuses on ease of use. Defining a
 //! service can be done in just a few lines of code, and most of the boilerplate of
 //! writing a server is taken care of for you.
 //!
 //! [Documentation](https://docs.rs/crate/lrcall/)
 //!
-//! ## What is an RPC framework?
+//! ## What is LPC?
+//! "LPC" stands for "Local Procedure Call," a function call where the work of
+//! producing the return value is being done locally.
+//!
+//! ## What is RPC?
 //! "RPC" stands for "Remote Procedure Call," a function call where the work of
 //! producing the return value is being done somewhere else. When an rpc function is
 //! invoked, behind the scenes the function contacts some other process somewhere
 //! and asks them to evaluate the function instead. The original function then
 //! returns the value produced by the other process.
 //!
-//! RPC frameworks are a fundamental building block of most microservices-oriented
-//! architectures. Two well-known ones are [gRPC](http://www.grpc.io) and
-//! [Cap'n Proto](https://capnproto.org/).
-//!
-//! lrcall differentiates itself from other RPC frameworks by defining the schema in code,
-//! rather than in a separate language such as .proto. This means there's no separate compilation
-//! process, and no context switching between different languages.
-//!
-//! Some other features of lrcall:
+//! ## Some features of lrcall:
+//! - The client supports both local calls and remote calls simultaneously, meaning that users can dynamically switch the calling method according to the context.
+//! - Defining the schema in code, rather than in a separate language such as .proto.
 //! - Pluggable transport: any type implementing `Stream<Item = Request> + Sink<Response>` can be used as a transport to connect the client and server.
 //! - `Send + 'static` optional: if the transport doesn't require it, neither does lrcall!
 //! - Cascading cancellation: dropping a request will send a cancellation message to the server. The server will cease any unfinished work on the request, subsequently cancelling any of its own
@@ -45,7 +43,7 @@
 //! Add to your `Cargo.toml` dependencies:
 //!
 //! ```toml
-//! lrcall = "0.34"
+//! lrcall = "0.1"
 //! ```
 //!
 //! The `lrcall::service` attribute expands to a collection of items that form an rpc service.
@@ -60,7 +58,7 @@
 //! ```toml
 //! anyhow = "1.0"
 //! futures = "0.3"
-//! lrcall = { version = "0.34", features = ["tokio1"] }
+//! lrcall = { version = "0.1", features = ["tokio1"] }
 //! tokio = { version = "1.0", features = ["macros"] }
 //! ```
 //!
@@ -175,7 +173,7 @@
 //!     // The client has an RPC method for each RPC defined in the annotated trait. It takes the same
 //!     // args as defined, with the addition of a Context, which is always the first arg. The Context
 //!     // specifies a deadline and trace information which can be helpful in debugging requests.
-//!     let hello = client.hello(context::rpc_current(), "Stim".to_string()).await?;
+//!     let hello = client.hello(context::rpc_current(), "Andeya".to_string()).await?;
 //!
 //!     println!("{hello}");
 //!
