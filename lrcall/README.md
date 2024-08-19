@@ -1,6 +1,6 @@
 # lrcall
 
-`lrcall` is a Rust procedure call framework that takes into account local and remote procedure calls.
+`lrcall` is a Rust procedure call framework that is compatible with local and remote procedure calls.
 
 Secondary development based on [google/tarpc](https://github.com/google/tarpc)
 
