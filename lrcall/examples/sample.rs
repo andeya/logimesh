@@ -36,11 +36,11 @@ async fn main() -> anyhow::Result<()> {
             }),
     );
 
-    let api = WorldClient::rpc_client(WorldChannel::spawn(client::Config::default(), client_transport));
+    let api = WorldClient::<UnimplWorld>::rpc_client(WorldChannel::spawn(client::Config::default(), client_transport));
     let hello = api.hello(context::Context::current(context::CallType::RPC), "Stim".to_string()).await?;
     println!("RPC: {hello}");
 
-    let api = WorldClient::local_client(local_service);
+    let api = WorldClient::<HelloService>::local_client(local_service);
     let hello = api.hello(context::Context::current(context::CallType::Local), "Stim".to_string()).await?;
     println!("Local: {hello}");
     Ok(())

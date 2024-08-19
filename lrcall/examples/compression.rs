@@ -119,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let transport = tcp::connect(addr, Bincode::default).await?;
-    let client = WorldClient::rpc_client(WorldChannel::spawn(client::Config::default(), add_compression(transport)));
+    let client = WorldClient::<UnimplWorld>::rpc_client(WorldChannel::spawn(client::Config::default(), add_compression(transport)));
 
     println!("{}", client.hello(context::rpc_current(), "friend".into()).await?);
     Ok(())

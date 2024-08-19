@@ -38,13 +38,13 @@ use lrcall::server::{self, Channel};
 use lrcall::tokio_serde::formats::Json;
 use lrcall::{client, context};
 use opentelemetry::trace::TracerProvider as _;
-use publisher::{Publisher as _, PublisherChannel};
+use publisher::Publisher as _;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock};
-use subscriber::{Subscriber as _, SubscriberChannel, SubscriberClient};
+use subscriber::{Subscriber as _, SubscriberClient, UnimplSubscriber};
 use tokio::net::ToSocketAddrs;
 use tracing::info;
 use tracing_subscriber::prelude::*;
@@ -115,9 +115,9 @@ struct Subscription {
 }
 
 #[derive(Clone, Debug)]
-struct Publisher<L> {
+struct Publisher {
     clients: Arc<Mutex<HashMap<SocketAddr, Subscription>>>,
-    subscriptions: Arc<RwLock<HashMap<String, HashMap<SocketAddr, subscriber::SubscriberClient<L>>>>>,
+    subscriptions: Arc<RwLock<HashMap<String, HashMap<SocketAddr, subscriber::SubscriberClient>>>>,
 }
 
 struct PublisherAddrs {
@@ -129,7 +129,7 @@ async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
     tokio::spawn(fut);
 }
 
-impl<L: subscriber::Subscriber + Clone + Send + Sync> Publisher<L> {
+impl Publisher {
     async fn start(self) -> io::Result<PublisherAddrs> {
         let mut connecting_publishers = tcp::listen("localhost:0", Json::default).await?;
 
@@ -146,7 +146,7 @@ impl<L: subscriber::Subscriber + Clone + Send + Sync> Publisher<L> {
             let publisher = connecting_publishers.next().await.unwrap().unwrap();
             info!(publisher.peer_addr = ?publisher.peer_addr(), "publisher connected.");
 
-            server::BaseChannel::with_defaults(publisher).execute(publisher::Publisher::serve(self)).for_each(spawn).await
+            server::BaseChannel::with_defaults(publisher).execute(self.serve()).for_each(spawn).await
         });
 
         Ok(publisher_addrs)
@@ -161,12 +161,12 @@ impl<L: subscriber::Subscriber + Clone + Send + Sync> Publisher<L> {
             while let Some(conn) = connecting_subscribers.next().await {
                 let subscriber_addr = conn.peer_addr().unwrap();
 
-                let lrcall::client::NewClient { client: subscriber, dispatch } = lrcall::client::new(client::Config::default(), conn);
+                let lrcall::client::NewClient { client: subscriber, dispatch } = client::new(client::Config::default(), conn);
                 let (ready_tx, ready) = oneshot::channel();
                 self.clone().start_subscriber_gc(subscriber_addr, dispatch, ready);
 
                 // Populate the topics
-                self.initialize_subscription(subscriber_addr, SubscriberClient::rpc_client(subscriber)).await;
+                self.initialize_subscription(subscriber_addr, SubscriberClient::<UnimplSubscriber>::rpc_client(subscriber)).await;
 
                 // Signal that initialization is done.
                 ready_tx.send(()).unwrap();
@@ -176,7 +176,7 @@ impl<L: subscriber::Subscriber + Clone + Send + Sync> Publisher<L> {
         Ok(new_subscriber_addr)
     }
 
-    async fn initialize_subscription(&mut self, subscriber_addr: SocketAddr, subscriber: subscriber::SubscriberClient<L, SubscriberChannel>) {
+    async fn initialize_subscription(&mut self, subscriber_addr: SocketAddr, subscriber: subscriber::SubscriberClient) {
         // Populate the topics
         if let Ok(topics) = subscriber.topics(context::rpc_current()).await {
             self.clients.lock().unwrap().insert(subscriber_addr, Subscription { topics: topics.clone() });
@@ -214,7 +214,7 @@ impl<L: subscriber::Subscriber + Clone + Send + Sync> Publisher<L> {
     }
 }
 
-impl<L: subscriber::Subscriber + Clone> publisher::Publisher for Publisher<L> {
+impl publisher::Publisher for Publisher {
     async fn publish(self, _: context::Context, topic: String, message: String) {
         info!("received message to publish.");
         let mut subscribers = match self.subscriptions.read().unwrap().get(&topic) {
@@ -275,7 +275,8 @@ async fn main() -> anyhow::Result<()> {
 
     let _subscriber1 = Subscriber::connect(addrs.subscriptions, vec!["cool shorts".into(), "history".into()]).await?;
 
-    let publisher = publisher::PublisherClient::rpc_client(PublisherChannel::spawn(client::Config::default(), tcp::connect(addrs.publisher, Json::default).await?));
+    let publisher =
+        publisher::PublisherClient::<publisher::UnimplPublisher>::rpc_client(publisher::PublisherChannel::spawn(client::Config::default(), tcp::connect(addrs.publisher, Json::default).await?));
 
     publisher.publish(context::rpc_current(), "calculus".into(), "sqrt(2)".into()).await?;
 

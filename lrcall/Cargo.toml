@@ -62,10 +62,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 tokio-util = { workspace = true, features = ["time"] }
 tokio-serde = { workspace = true, optional = true }
-tracing = { workspace = true,  features = [
-    "attributes",
-    "log",
-] }
+tracing = { workspace = true, features = ["attributes", "log"] }
 tracing-opentelemetry = { workspace = true }
 opentelemetry = { workspace = true }
 opentelemetry-semantic-conventions = { workspace = true }
@@ -116,6 +113,15 @@ required-features = ["serde1", "tokio1", "serde-transport"]
 [[example]]
 name = "tls_over_tcp"
 required-features = ["full"]
+
+[[example]]
+name = "sample"
+required-features = ["tokio1"]
+
+[[example]]
+name = "sample_expand"
+required-features = ["tokio1"]
+
 
 [[test]]
 name = "service_functional"

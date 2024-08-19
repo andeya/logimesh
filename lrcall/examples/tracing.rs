@@ -24,7 +24,7 @@ use tokio::net::TcpStream;
 use tracing_subscriber::prelude::*;
 
 pub mod add {
-    #[::lrcall::service]
+    #[lrcall::service]
     pub trait Add {
         /// Add two ints together.
         async fn add(x: i32, y: i32) -> i32;
@@ -49,13 +49,14 @@ impl AddService for AddServer {
 }
 
 #[derive(Clone)]
-struct DoubleServer<Stub> {
-    add_client: add::AddClient<Stub>,
+struct DoubleServer<L, R> {
+    add_client: add::AddClient<L, R>,
 }
 
-impl<Stub> DoubleService for DoubleServer<Stub>
+impl<L, R> DoubleService for DoubleServer<L, R>
 where
-    Stub: AddRpcStub + Clone + Send + Sync + 'static,
+    L: add::Add + Clone + Send + Sync + 'static,
+    R: AddRpcStub + Clone + Send + Sync + 'static,
 {
     async fn double(self, _: context::Context, x: i32) -> Result<i32, String> {
         self.add_client.add(context::rpc_current(), x, x).await.map_err(|e| e.to_string())
@@ -137,7 +138,7 @@ async fn main() -> anyhow::Result<()> {
     let add_server = add_listener1.chain(add_listener2).map(BaseChannel::with_defaults);
     tokio::spawn(spawn_incoming(add_server.execute(server)));
 
-    let add_client = add::AddClient::<AddServer>::rpc_client(make_stub([
+    let add_client = add::AddClient::<add::UnimplAdd, _>::rpc_client(make_stub([
         lrcall::serde_transport::tcp::connect(addr1, Json::default).await?,
         lrcall::serde_transport::tcp::connect(addr2, Json::default).await?,
     ]));
@@ -145,11 +146,12 @@ async fn main() -> anyhow::Result<()> {
     let double_listener = lrcall::serde_transport::tcp::listen("localhost:0", Json::default).await?.filter_map(|r| future::ready(r.ok()));
     let addr = double_listener.get_ref().local_addr();
     let double_server = double_listener.map(BaseChannel::with_defaults).take(1);
-    let server: DoubleServer<AddServer> = DoubleServer { add_client };
-    tokio::spawn(spawn_incoming(double_server.execute(server.clone().serve())));
+    let server = DoubleServer { add_client };
+
+    tokio::spawn(spawn_incoming(double_server.execute(server.serve())));
 
     let to_double_server = lrcall::serde_transport::tcp::connect(addr, Json::default).await?;
-    let double_client = double::DoubleClient::<DoubleServer<AddServer>>::rpc_client((client::Config::default(), to_double_server).into());
+    let double_client = double::DoubleClient::<double::UnimplDouble>::rpc_client(double::DoubleChannel::spawn(client::Config::default(), to_double_server));
 
     let ctx = context::rpc_current();
     for _ in 1..=5 {

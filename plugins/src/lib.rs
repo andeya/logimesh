@@ -373,7 +373,7 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let code = ServiceGenerator {
         service_ident: ident,
-        service_unimplemented_ident: &format_ident!("{}Unimplemented", ident),
+        service_unimplemented_ident: &format_ident!("Unimpl{}", ident),
         client_stub_ident: &format_ident!("{}RpcStub", ident),
         channel_ident: &format_ident!("{}Channel", ident),
         server_ident: &format_ident!("Serve{}", ident),
@@ -481,7 +481,7 @@ impl<'a> ServiceGenerator<'a> {
             }
 
             #[derive(Debug,Clone,Copy)]
-            struct #service_unimplemented_ident;
+            #vis struct #service_unimplemented_ident;
 
             impl #service_ident for #service_unimplemented_ident {
                 #( #unimplemented_rpc_fns )*
@@ -636,8 +636,6 @@ impl<'a> ServiceGenerator<'a> {
     fn impl_client_new(&self) -> TokenStream2 {
         let &Self {
             service_ident,
-            service_unimplemented_ident,
-            channel_ident,
             client_stub_ident,
             client_ident,
             vis,
@@ -657,12 +655,7 @@ impl<'a> ServiceGenerator<'a> {
                         rpc_stub: ::core::option::Option::Some(rpc_stub),
                     }
                 }
-            }
 
-            impl<L> #client_ident<L, #channel_ident>
-            where
-                L: #service_ident + ::core::clone::Clone,
-            {
                 /// Return a new local client that supports local calls.
                 #vis fn local_client(local_service: L) -> Self {
                     Self {
@@ -670,12 +663,7 @@ impl<'a> ServiceGenerator<'a> {
                         rpc_stub: ::core::option::Option::None,
                     }
                 }
-            }
 
-            impl<R> #client_ident<#service_unimplemented_ident, R>
-            where
-                R: #client_stub_ident,
-            {
                 /// Returns a new RPC client stub that supports remote calls.
                 #vis fn rpc_client(rpc_stub: R) -> Self {
                     Self {

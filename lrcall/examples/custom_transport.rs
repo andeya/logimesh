@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
 
     let conn = UnixStream::connect(bind_addr).await?;
     let transport = transport::new(codec_builder.new_framed(conn), Bincode::default());
-    PingServiceClient::rpc_client(PingServiceChannel::spawn(Default::default(), transport) )
+    PingServiceClient::<UnimplPingService>::rpc_client(PingServiceChannel::spawn(Default::default(), transport))
         .ping(lrcall::context::rpc_current())
         .await?;
 
