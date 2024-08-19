@@ -1,9 +1,9 @@
 # lrcall
 
-`lrcall` is a Rust communication framework that is compatible with local invocations and RPC.
+`lrcall` is a Rust procedure call framework that takes into account local and remote procedure calls.
 
-Secondary development based on [tarpc](https://github.com/google/tarpc)
+Secondary development based on [google/tarpc](https://github.com/google/tarpc)
 
 [![Crates.io](https://img.shields.io/crates/v/lrcall)](https://crates.io/crates/lrcall)
 [![Documentation](https://shields.io/docsrs/lrcall)](https://docs.rs/lrcall)
-[![License](https://img.shields.io/crates/l/logimesh)](https://github.com/andeya/logimesh?tab=Apache-2.0-1-ov-file)
+[![License](https://img.shields.io/crates/l/lrcall)](https://github.com/andeya/logimesh/blob/main/lrcall/LICENSE)

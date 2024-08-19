@@ -1,6 +1,6 @@
 # Example
 
-Example service to demonstrate how to set up `lrcall` with [Jaeger](https://www.jaegertracing.io) using OTLP. To see traces Jaeger, run the following with `RUST_LOG=trace`.
+Example service to demonstrate how to set up `lrcall`, run the following with `RUST_LOG=trace`.
 
 ## Server
 
