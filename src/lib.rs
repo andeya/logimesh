@@ -1,14 +1,35 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+// Copyright Andeya Lee 2024
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//!
+//! logimesh is a Rust microservice 2.0 framework.
+#![deny(missing_docs)]
+#![allow(clippy::type_complexity)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub use logimesh_macro::{derive_serde, service};
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub mod client;
+
+/// re-public `tarpc` crate something.
+pub use crate::tarpc::*;
+
+mod tarpc {
+    #[doc(hidden)]
+    pub use ::tarpc::serde;
+
+    pub use ::tarpc::{tokio_serde, tokio_util};
+
+    #[cfg_attr(docsrs, doc())]
+    pub use ::tarpc::serde_transport;
+
+    pub use ::tarpc::trace;
+
+    pub use ::tarpc::{context, server, transport};
+
+    pub use ::tarpc::Transport;
+
+    pub use ::tarpc::{ChannelError, ClientMessage, Request, RequestName, Response, ServerError};
 }

@@ -1,0 +1,37 @@
+[package]
+name = "logimesh-macro"
+description = "logimesh-macro is Proc macros for logimesh."
+readme = "../logimesh/README.md"
+documentation = "https://docs.rs/logimesh-macro"
+authors = [
+    "Andeya Lee <andeyalee@outlook.com>",
+    "Adam Wright <adam.austin.wright@gmail.com>",
+    "Tim Kuehn <timothy.j.kuehn@gmail.com>",
+]
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+serde1 = []
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true, features = ["full", "extra-traits"] }
+
+[lib]
+proc-macro = true
+
+[dev-dependencies]
+assert-type-eq = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+logimesh = { workspace = true }

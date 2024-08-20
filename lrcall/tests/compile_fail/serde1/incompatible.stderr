@@ -1,7 +1,0 @@
-error: lrcall does not support `derive_serde` and `derive` at the same time
- --> tests/compile_fail/serde1/incompatible.rs:2:1
-  |
-2 | #[lrcall::service(derive = [Clone], derive_serde = true)]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: this error originates in the attribute macro `lrcall::service` (in Nightly builds, run with -Z macro-backtrace for more info)

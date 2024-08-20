@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cargo publish -p lrcall-macro --allow-dirty
-cargo publish -p lrcall --allow-dirty
+cargo publish -p logimesh-macro --allow-dirty
+cargo publish -p logimesh --allow-dirty
