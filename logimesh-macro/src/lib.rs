@@ -37,7 +37,7 @@ macro_rules! extend_errors {
     };
 }
 
-struct Service {
+struct Component {
     attrs: Vec<Attribute>,
     vis: Visibility,
     ident: Ident,
@@ -51,7 +51,7 @@ struct RpcMethod {
     output: ReturnType,
 }
 
-impl Parse for Service {
+impl Parse for Component {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let attrs = input.call(Attribute::parse_outer)?;
         let vis = input.parse()?;
@@ -146,14 +146,14 @@ impl Parse for DeriveMeta {
         let meta_items = input.parse_terminated(MetaNameValue::parse, Comma)?;
         for meta in meta_items {
             if meta.path.segments.len() != 1 {
-                extend_errors!(result, syn::Error::new(meta.span(), "logimesh::service does not support this meta item"));
+                extend_errors!(result, syn::Error::new(meta.span(), "logimesh::component does not support this meta item"));
                 continue;
             }
             let segment = meta.path.segments.first().unwrap();
             if segment.ident == "derive" {
                 has_explicit_derives = true;
                 let Expr::Array(ref array) = meta.value else {
-                    extend_errors!(result, syn::Error::new(meta.span(), "logimesh::service does not support this meta item"));
+                    extend_errors!(result, syn::Error::new(meta.span(), "logimesh::component does not support this meta item"));
                     continue;
                 };
 
@@ -198,7 +198,7 @@ impl Parse for DeriveMeta {
                 }
                 derive_serde.push(meta);
             } else {
-                extend_errors!(result, syn::Error::new(meta.span(), "logimesh::service does not support this meta item"));
+                extend_errors!(result, syn::Error::new(meta.span(), "logimesh::component does not support this meta item"));
                 continue;
             }
         }
@@ -207,8 +207,8 @@ impl Parse for DeriveMeta {
             let deprecation_hack = quote! {
                 const _: () = {
                     #[deprecated(
-                        note = "\nThe form `logimesh::service(derive_serde = true)` is deprecated.\
-                        \nUse `logimesh::service(derive = [Serialize, Deserialize])`."
+                        note = "\nThe form `logimesh::component(derive_serde = true)` is deprecated.\
+                        \nUse `logimesh::component(derive = [Serialize, Deserialize])`."
                     )]
                     const DEPRECATED_SYNTAX: () = ();
                     let _ = DEPRECATED_SYNTAX;
@@ -288,9 +288,9 @@ fn collect_cfg_attrs(rpcs: &[RpcMethod]) -> Vec<Vec<&Attribute>> {
 /// # Example
 ///
 /// ```no_run
-/// use logimesh::{client, transport, service, server::{self, Channel}, context::Context};
+/// use logimesh::{client, transport, component, server::{self, Channel}, context::Context};
 ///
-/// #[service]
+/// #[component]
 /// pub trait Calculator {
 ///     async fn add(a: i32, b: i32) -> i32;
 /// }
@@ -324,15 +324,15 @@ fn collect_cfg_attrs(rpcs: &[RpcMethod]) -> Vec<Vec<&Attribute>> {
 /// let _ = server.execute(CalculatorServer.serve());
 /// ```
 #[proc_macro_attribute]
-pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
+pub fn component(attr: TokenStream, input: TokenStream) -> TokenStream {
     let derive_meta = parse_macro_input!(attr as DeriveMeta);
     let unit_type: &Type = &parse_quote!(());
-    let Service {
+    let Component {
         ref attrs,
         ref vis,
         ref ident,
         ref rpcs,
-    } = parse_macro_input!(input as Service);
+    } = parse_macro_input!(input as Component);
 
     let camel_case_fn_names: &Vec<_> = &rpcs.iter().map(|rpc| snake_to_camel(&rpc.ident.unraw().to_string())).collect();
     let args: &[&[PatType]] = &rpcs.iter().map(|rpc| &*rpc.args).collect::<Vec<_>>();
@@ -376,9 +376,9 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
     let methods = rpcs.iter().map(|rpc| &rpc.ident).collect::<Vec<_>>();
     let request_names = methods.iter().map(|m| format!("{ident}.{m}")).collect::<Vec<_>>();
 
-    let code = ServiceGenerator {
-        service_ident: ident,
-        service_unimplemented_ident: &format_ident!("Unimpl{}", ident),
+    let code = ComponentGenerator {
+        component_ident: ident,
+        component_unimplemented_ident: &format_ident!("Unimpl{}", ident),
         client_stub_ident: &format_ident!("{}Stub", ident),
         channel_ident: &format_ident!("{}Channel", ident),
         server_ident: &format_ident!("Serve{}", ident),
@@ -412,11 +412,11 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
     code.into()
 }
 
-// Things needed to generate the service items: trait, serve impl, request/response enums, and
+// Things needed to generate the component items: trait, serve impl, request/response enums, and
 // the client stub.
-struct ServiceGenerator<'a> {
-    service_ident: &'a Ident,
-    service_unimplemented_ident: &'a Ident,
+struct ComponentGenerator<'a> {
+    component_ident: &'a Ident,
+    component_unimplemented_ident: &'a Ident,
     client_stub_ident: &'a Ident,
     channel_ident: &'a Ident,
     server_ident: &'a Ident,
@@ -438,17 +438,17 @@ struct ServiceGenerator<'a> {
     warnings: &'a [TokenStream2],
 }
 
-impl<'a> ServiceGenerator<'a> {
-    fn trait_service(&self) -> TokenStream2 {
+impl<'a> ComponentGenerator<'a> {
+    fn trait_component(&self) -> TokenStream2 {
         let &Self {
             client_ident,
-            service_unimplemented_ident,
+            component_unimplemented_ident,
             channel_ident,
             attrs,
             rpcs,
             vis,
             return_types,
-            service_ident,
+            component_ident,
             client_stub_ident,
             request_ident,
             response_ident,
@@ -473,31 +473,31 @@ impl<'a> ServiceGenerator<'a> {
             }
         });
 
-        let stub_doc = format!(r" The stub trait for service [`{service_ident}`].");
+        let stub_doc = format!(r" The stub trait for component [`{component_ident}`].");
         let channel_doc1 = format!(r" The default {client_stub_ident} implementation.");
         let channel_doc2 = format!(r" Usage: `{channel_ident}::spawn(config, transport)`");
         quote! {
             #( #attrs )*
             #[allow(async_fn_in_trait)]
-            #vis trait #service_ident: ::core::marker::Sized + ::core::clone::Clone {
+            #vis trait #component_ident: ::core::marker::Sized + ::core::clone::Clone {
                 #( #rpc_fns )*
 
                 /// Returns a serving function to use with
                 /// [InFlightRequest::execute](::logimesh::server::InFlightRequest::execute).
                 fn serve(self) -> #server_ident<Self> {
-                    #server_ident { service: self }
+                    #server_ident { component: self }
                 }
 
                 /// Returns a client that supports both local calls and remote calls.
                 fn client<ServiceLookup: ::logimesh::discover::ServiceLookup>(self,config: ::logimesh::client::stub::lrcall::Config<ServiceLookup>) -> #client_ident<::logimesh::client::stub::lrcall::LRCall<#server_ident<Self>, ServiceLookup>> {
-                    ::logimesh::client::stub::lrcall::LRCall::new(#server_ident { service: self }, config).into()
+                    ::logimesh::client::stub::lrcall::LRCall::new(#server_ident { component: self }, config).into()
                 }
             }
 
             #[derive(Debug,Clone,Copy)]
-            #vis struct #service_unimplemented_ident;
+            #vis struct #component_unimplemented_ident;
 
-            impl #service_ident for #service_unimplemented_ident {
+            impl #component_ident for #component_unimplemented_ident {
                 #( #unimplemented_rpc_fns )*
             }
 
@@ -523,7 +523,7 @@ impl<'a> ServiceGenerator<'a> {
             /// A serving function to use with [::logimesh::server::InFlightRequest::execute].
             #[derive(Clone)]
             #vis struct #server_ident<S> {
-                service: S,
+                component: S,
             }
         }
     }
@@ -532,7 +532,7 @@ impl<'a> ServiceGenerator<'a> {
         let &Self {
             request_ident,
             server_ident,
-            service_ident,
+            component_ident,
             response_ident,
             camel_case_idents,
             arg_pats,
@@ -543,7 +543,7 @@ impl<'a> ServiceGenerator<'a> {
 
         quote! {
             impl<S> ::logimesh::server::Serve for #server_ident<S>
-                where S: #service_ident
+                where S: #component_ident
             {
                 type Req = #request_ident;
                 type Resp = #response_ident;
@@ -556,8 +556,8 @@ impl<'a> ServiceGenerator<'a> {
                             #( #method_cfgs )*
                             #request_ident::#camel_case_idents{ #( #arg_pats ),* } => {
                                 ::core::result::Result::Ok(#response_ident::#camel_case_idents(
-                                    #service_ident::#method_idents(
-                                        self.service, ctx, #( #arg_pats ),*
+                                    #component_ident::#method_idents(
+                                        self.component, ctx, #( #arg_pats ),*
                                     ).await
                                 ))
                             }
@@ -729,10 +729,10 @@ impl<'a> ServiceGenerator<'a> {
     }
 }
 
-impl<'a> ToTokens for ServiceGenerator<'a> {
+impl<'a> ToTokens for ComponentGenerator<'a> {
     fn to_tokens(&self, output: &mut TokenStream2) {
         output.extend(vec![
-            self.trait_service(),
+            self.trait_component(),
             self.struct_server(),
             self.impl_serve_for_server(),
             self.enum_request(),

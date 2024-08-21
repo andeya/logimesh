@@ -1,6 +1,6 @@
 // these need to be out here rather than inside the function so that the
 // assert_type_eq macro can pick them up.
-#[logimesh::service]
+#[logimesh::component]
 trait Foo {
     async fn two_part(s: String, i: i32) -> (String, i32);
     async fn bar(s: String) -> String;
@@ -12,7 +12,7 @@ trait Foo {
 fn raw_idents_work() {
     type r#yield = String;
 
-    #[logimesh::service]
+    #[logimesh::component]
     trait r#trait {
         async fn r#await(r#struct: r#yield, r#enum: i32) -> (r#yield, i32);
         async fn r#fn(r#impl: r#yield) -> r#yield;
@@ -22,7 +22,7 @@ fn raw_idents_work() {
 
 #[test]
 fn syntax() {
-    #[logimesh::service]
+    #[logimesh::component]
     trait Syntax {
         #[deny(warnings)]
         #[allow(non_snake_case)]

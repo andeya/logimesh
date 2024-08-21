@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 #[test]
 fn att_service_trait() {
-    #[logimesh::service]
+    #[logimesh::component]
     trait Foo {
         async fn two_part(s: String, i: i32) -> (String, i32);
         async fn bar(s: String) -> String;
@@ -29,7 +29,7 @@ fn att_service_trait() {
 fn raw_idents() {
     type r#yield = String;
 
-    #[logimesh::service]
+    #[logimesh::component]
     trait r#trait {
         async fn r#await(r#struct: r#yield, r#enum: i32) -> (r#yield, i32);
         async fn r#fn(r#impl: r#yield) -> r#yield;
@@ -51,7 +51,7 @@ fn raw_idents() {
 
 #[test]
 fn service_with_cfg_rpc() {
-    #[logimesh::service]
+    #[logimesh::component]
     trait Foo {
         async fn foo();
         #[cfg(not(test))]
@@ -65,7 +65,7 @@ fn service_with_cfg_rpc() {
 
 #[test]
 fn syntax() {
-    #[logimesh::service]
+    #[logimesh::component]
     trait Syntax {
         #[deny(warnings)]
         #[allow(non_snake_case)]
@@ -88,7 +88,7 @@ fn syntax() {
 
 #[test]
 fn custom_derives() {
-    #[logimesh::service(derive = [Clone, Hash])]
+    #[logimesh::component(derive = [Clone, Hash])]
     trait Foo {
         async fn foo();
     }
@@ -103,7 +103,7 @@ fn custom_derives() {
 
 #[test]
 fn implicit_serde() {
-    #[logimesh::service]
+    #[logimesh::component]
     trait Foo {
         async fn foo();
     }
@@ -121,7 +121,7 @@ fn implicit_serde() {
 #[allow(deprecated)]
 #[test]
 fn explicit_serde() {
-    #[logimesh::service(derive_serde = true)]
+    #[logimesh::component(derive_serde = true)]
     trait Foo {
         async fn foo();
     }

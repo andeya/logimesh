@@ -98,7 +98,7 @@ where
     transport.with(compress).and_then(decompress)
 }
 
-#[logimesh::service]
+#[logimesh::component]
 pub trait World {
     async fn hello(name: String) -> String;
 }

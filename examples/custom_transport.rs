@@ -13,7 +13,7 @@ use logimesh::tokio_serde::formats::Bincode;
 use logimesh::tokio_util::codec::length_delimited::LengthDelimitedCodec;
 use tokio::net::{UnixListener, UnixStream};
 
-#[logimesh::service]
+#[logimesh::component]
 pub trait PingService {
     async fn ping();
 }

@@ -1,13 +1,13 @@
 [package]
 name = "logimesh-macro"
 description = "logimesh-macro is Proc macros for logimesh."
-readme = "../logimesh/README.md"
 documentation = "https://docs.rs/logimesh-macro"
 authors = [
     "Andeya Lee <andeyalee@outlook.com>",
     "Adam Wright <adam.austin.wright@gmail.com>",
     "Tim Kuehn <timothy.j.kuehn@gmail.com>",
 ]
+readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 license.workspace = true

@@ -13,9 +13,9 @@ use tokio::time;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::prelude::*;
 
-/// This is the service definition. It looks a lot like a trait definition.
+/// This is the componentdefinition. It looks a lot like a trait definition.
 /// It defines one RPC, hello, which takes one arg, name, and returns a String.
-#[logimesh::service]
+#[logimesh::component]
 pub trait World {
     /// Returns a greeting for name.
     async fn hello(name: String) -> String;
@@ -49,9 +49,9 @@ pub fn init_tracing(service_name: &'static str) -> anyhow::Result<()> {
 // This is the type that implements the generated World trait. It is the business logic
 // and is used to start the server.
 #[derive(Clone)]
-pub struct HelloService;
+pub struct CompHello;
 
-impl World for HelloService {
+impl World for CompHello {
     async fn hello(self, ctx: context::Context, name: String) -> String {
         let sleep_time = Duration::from_millis(Uniform::new_inclusive(1, 10).sample(&mut thread_rng()));
         time::sleep(sleep_time).await;

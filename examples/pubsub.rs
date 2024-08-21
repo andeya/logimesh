@@ -50,7 +50,7 @@ use tracing::info;
 use tracing_subscriber::prelude::*;
 
 pub mod subscriber {
-    #[logimesh::service]
+    #[logimesh::component]
     pub trait Subscriber {
         async fn topics() -> Vec<String>;
         async fn receive(topic: String, message: String);
@@ -58,7 +58,7 @@ pub mod subscriber {
 }
 
 pub mod publisher {
-    #[logimesh::service]
+    #[logimesh::component]
     pub trait Publisher {
         async fn publish(topic: String, message: String);
     }

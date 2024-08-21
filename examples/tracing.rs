@@ -24,7 +24,7 @@ use tokio::net::TcpStream;
 use tracing_subscriber::prelude::*;
 
 pub mod add {
-    #[logimesh::service]
+    #[logimesh::component]
     pub trait Add {
         /// Add two ints together.
         async fn add(x: i32, y: i32) -> i32;
@@ -32,7 +32,7 @@ pub mod add {
 }
 
 pub mod double {
-    #[logimesh::service]
+    #[logimesh::component]
     pub trait Double {
         /// 2 * x
         async fn double(x: i32) -> Result<i32, String>;

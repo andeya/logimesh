@@ -9,7 +9,7 @@
 #![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use logimesh_macro::{derive_serde, service};
+pub use logimesh_macro::{component, derive_serde};
 
 pub mod client;
 pub mod discover;
