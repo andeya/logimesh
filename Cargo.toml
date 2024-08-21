@@ -86,7 +86,8 @@ logimesh-macro = { version = "0.1", path = "./logimesh-macro" }
 logimesh = { path = "./" }
 
 # all dependencies
-tarpc = { git = "https://github.com/google/tarpc" }
+
+tarpc = { package = "tarpc-copy", version = "=0.34.0-copy.f81ddd6" }
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = "2.0.74"
