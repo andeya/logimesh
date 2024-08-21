@@ -96,10 +96,10 @@ impl Subscriber {
         let subscriber = Subscriber { local_addr, topics };
         // The first request is for the topics being subscribed to.
         match handler.next().await {
-            Some(init_topics) => init_topics?.execute(subscriber.clone().serve()).await,
+            Some(init_topics) => init_topics?.execute(subscriber.clone().logimesh_serve()).await,
             None => return Err(anyhow!("[{}] Server never initialized the subscriber.", local_addr)),
         };
-        let (handler, abort_handle) = future::abortable(handler.execute(subscriber.serve()).for_each(spawn));
+        let (handler, abort_handle) = future::abortable(handler.execute(subscriber.logimesh_serve()).for_each(spawn));
         tokio::spawn(async move {
             match handler.await {
                 Ok(()) | Err(future::Aborted) => info!(?local_addr, "subscriber shutdown."),
@@ -146,7 +146,7 @@ impl Publisher {
             let publisher = connecting_publishers.next().await.unwrap().unwrap();
             info!(publisher.peer_addr = ?publisher.peer_addr(), "publisher connected.");
 
-            server::BaseChannel::with_defaults(publisher).execute(self.serve()).for_each(spawn).await
+            server::BaseChannel::with_defaults(publisher).execute(self.logimesh_serve()).for_each(spawn).await
         });
 
         Ok(publisher_addrs)

@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
         // the generated World trait.
         .map(|channel| {
             let server = CompHello;
-            channel.execute(server.serve()).for_each(spawn)
+            channel.execute(server.logimesh_serve()).for_each(spawn)
         })
         // Max 10 channels.
         .buffer_unordered(10)

@@ -6,36 +6,44 @@
 //! A client stbu that supports both local calls and remote calls.
 #![allow(dead_code)]
 
-use crate::client::stub::Stub;
+use crate::client::stub::{Config, Stub};
 use crate::client::RpcError;
 use crate::{context, discover, server};
 
-/// A client stbu config.
-pub struct Config<ServiceLookup> {
-    service_lookup: ServiceLookup,
-}
-
 /// A client stbu that supports both local calls and remote calls.
-pub struct LRCall<Serve, ServiceLookup> {
+pub struct LRCall<Serve, ServiceLookup, RetryFn> {
     config: Config<ServiceLookup>,
     serve: Serve,
+    retry_fn: RetryFn,
+    warm_up_error: Option<anyhow::Error>,
 }
 
-impl<Serve, ServiceLookup> LRCall<Serve, ServiceLookup>
+impl<Serve, ServiceLookup, RetryFn> LRCall<Serve, ServiceLookup, RetryFn>
 where
     Serve: server::Serve + Clone,
     ServiceLookup: discover::ServiceLookup,
+    RetryFn: Fn(&Result<Serve::Resp, RpcError>, u32) -> bool,
 {
     /// Return a new client stbu that supports both local calls and remote calls.
-    pub fn new(serve: impl Into<Serve>, config: Config<ServiceLookup>) -> Self {
-        Self { serve: serve.into(), config }
+    pub fn new(serve: impl Into<Serve>, config: Config<ServiceLookup>, retry_fn: RetryFn) -> Self {
+        Self {
+            serve: serve.into(),
+            config,
+            retry_fn,
+            warm_up_error: None,
+        }
+        .warm_up()
+    }
+    fn warm_up(self) -> Self {
+        self
     }
 }
 
-impl<Serve, ServiceLookup> Stub for LRCall<Serve, ServiceLookup>
+impl<Serve, ServiceLookup, RetryFn> Stub for LRCall<Serve, ServiceLookup, RetryFn>
 where
     Serve: server::Serve + Clone,
     ServiceLookup: discover::ServiceLookup,
+    RetryFn: Fn(&Result<Serve::Resp, RpcError>, u32) -> bool,
 {
     type Req = Serve::Req;
     type Resp = Serve::Resp;

@@ -9,7 +9,6 @@ use crate::add::{Add as AddService, AddStub};
 use crate::double::Double as DoubleService;
 use futures::future;
 use futures::prelude::*;
-use logimesh::client::stub::{load_balance, retry};
 use logimesh::client::{self, RpcError};
 use logimesh::server::incoming::{spawn_incoming, Incoming};
 use logimesh::server::request_hook::{self, BeforeRequestList};
@@ -20,6 +19,7 @@ use opentelemetry::trace::TracerProvider as _;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tarpc::client::stub::{load_balance, retry};
 use tokio::net::TcpStream;
 use tracing_subscriber::prelude::*;
 
@@ -136,7 +136,7 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         })
-        .serving(AddServer.serve());
+        .serving(AddServer.logimesh_serve());
     let add_server = add_listener1.chain(add_listener2).map(BaseChannel::with_defaults);
     tokio::spawn(spawn_incoming(add_server.execute(server)));
 
@@ -148,7 +148,7 @@ async fn main() -> anyhow::Result<()> {
     let double_listener = logimesh::serde_transport::tcp::listen("localhost:0", Json::default).await?.filter_map(|r| future::ready(r.ok()));
     let addr = double_listener.get_ref().local_addr();
     let double_server = double_listener.map(BaseChannel::with_defaults).take(1);
-    let server = DoubleServer { add_client }.serve();
+    let server = DoubleServer { add_client }.logimesh_serve();
     tokio::spawn(spawn_incoming(double_server.execute(server)));
 
     let to_double_server = logimesh::serde_transport::tcp::connect(addr, Json::default).await?;

@@ -119,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
             let transport = transport::new(framed, Bincode::default());
 
             let fut = BaseChannel::with_defaults(transport)
-                .execute(Service.serve())
+                .execute(Service.logimesh_serve())
                 .for_each(spawn);
             tokio::spawn(fut);
         }

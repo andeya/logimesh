@@ -5,5 +5,10 @@
 // https://opensource.org/licenses/MIT.
 //! Provides a Stub trait, implemented by types that can call remote services.
 
-pub mod lrcall;
-pub use ::tarpc::client::stub::*;
+pub use ::tarpc::client::stub::Stub;
+pub use config::*;
+pub use lrcall::*;
+mod config;
+mod lrcall;
+/// The methods that all components should implement
+pub trait Component {}

@@ -15,13 +15,13 @@ impl<T> ServiceDiscovery for T where T: ServiceRegister + ServiceLookup {}
 /// Service register.
 pub trait ServiceRegister {
     /// register service
-    fn register_service(&self, service_info: ServiceInfo);
+    fn register_service(&self, service_info: ServiceInfo) -> anyhow::Result<()>;
 }
 
 /// Service lookup.
 pub trait ServiceLookup {
     /// Returns service information
-    fn lookup_service(&self, service_name: String) -> Arc<Vec<ServiceInfo>>;
+    fn lookup_service(&self, service_name: String) -> anyhow::Result<Arc<Vec<ServiceInfo>>>;
 }
 
 /// Service information.

@@ -484,13 +484,23 @@ impl<'a> ComponentGenerator<'a> {
 
                 /// Returns a serving function to use with
                 /// [InFlightRequest::execute](::logimesh::server::InFlightRequest::execute).
-                fn serve(self) -> #server_ident<Self> {
+                fn logimesh_serve(self) -> #server_ident<Self> {
                     #server_ident { component: self }
                 }
 
                 /// Returns a client that supports both local calls and remote calls.
-                fn client<ServiceLookup: ::logimesh::discover::ServiceLookup>(self,config: ::logimesh::client::stub::lrcall::Config<ServiceLookup>) -> #client_ident<::logimesh::client::stub::lrcall::LRCall<#server_ident<Self>, ServiceLookup>> {
-                    ::logimesh::client::stub::lrcall::LRCall::new(#server_ident { component: self }, config).into()
+                fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(self,config: ::logimesh::client::stub::Config<ServiceLookup>) -> #client_ident<::logimesh::client::stub::LRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool>> {
+                    let stub: ::logimesh::client::stub::LRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool> = 
+                        ::logimesh::client::stub::LRCall::new(#server_ident { component: self }, config, Self::logimesh_should_retry);
+                    stub.into()
+                }
+
+                /// Judge whether a retry should be made according to the result returned by the call.
+                /// When `::logimesh::client::stub::Config.enable_retry` is true, the method will be called.
+                /// So you should implement your own version.
+                #[allow(unused_variables)]
+                fn logimesh_should_retry(result: &::core::result::Result<#response_ident, ::logimesh::client::RpcError>, tried_times: u32) -> bool {
+                    false
                 }
             }
 
