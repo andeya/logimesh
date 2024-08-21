@@ -13,7 +13,10 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone {
         ServeWorld { service: self }
     }
     #[doc = r" Returns a client that supports both local calls and remote calls."]
-    fn client<ServLookup>(self, config: ::logimesh::client::stub::lrcall::Config<ServLookup>) -> WorldClient<::logimesh::client::stub::lrcall::LRCall<ServeWorld<Self>, ServLookup>> {
+    fn client<ServiceLookup: ::logimesh::discover::ServiceLookup>(
+        self,
+        config: ::logimesh::client::stub::lrcall::Config<ServiceLookup>,
+    ) -> WorldClient<::logimesh::client::stub::lrcall::LRCall<ServeWorld<Self>, ServiceLookup>> {
         ::logimesh::client::stub::lrcall::LRCall::new(ServeWorld { service: self }, config).into()
     }
 }
@@ -25,10 +28,11 @@ impl World for UnimplWorld {
         unimplemented!()
     }
 }
-#[doc = "The stub trait for service [`World`]."]
+#[doc = " The stub trait for service [`World`]."]
 pub trait WorldStub: ::logimesh::client::stub::Stub<Req = WorldRequest, Resp = WorldResponse> {}
 impl<S> WorldStub for S where S: ::logimesh::client::stub::Stub<Req = WorldRequest, Resp = WorldResponse> {}
-#[doc = "The default WorldStub implementation.\nUsage: `WorldChannel::spawn(config, transport)`"]
+#[doc = " The default WorldStub implementation."]
+#[doc = " Usage: `WorldChannel::spawn(config, transport)`"]
 pub type WorldChannel = ::logimesh::client::Channel<WorldRequest, WorldResponse>;
 #[doc = r" A serving function to use with [::logimesh::server::InFlightRequest::execute]."]
 #[derive(Clone)]
@@ -121,6 +125,7 @@ where
         }
     }
 }
+
 /// This is the type that implements the generated World trait. It is the business logic
 /// and is used to start the server.
 #[derive(Clone)]

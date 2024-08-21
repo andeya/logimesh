@@ -473,8 +473,9 @@ impl<'a> ServiceGenerator<'a> {
             }
         });
 
-        let stub_doc = format!("The stub trait for service [`{service_ident}`].");
-        let channel_doc = format!("The default {client_stub_ident} implementation.\nUsage: `{channel_ident}::spawn(config, transport)`");
+        let stub_doc = format!(r" The stub trait for service [`{service_ident}`].");
+        let channel_doc1 = format!(r" The default {client_stub_ident} implementation.");
+        let channel_doc2 = format!(r" Usage: `{channel_ident}::spawn(config, transport)`");
         quote! {
             #( #attrs )*
             #[allow(async_fn_in_trait)]
@@ -488,7 +489,7 @@ impl<'a> ServiceGenerator<'a> {
                 }
 
                 /// Returns a client that supports both local calls and remote calls.
-                fn client<ServLookup>(self,config: ::logimesh::client::stub::lrcall::Config<ServLookup>) -> #client_ident<::logimesh::client::stub::lrcall::LRCall<#server_ident<Self>, ServLookup>> {
+                fn client<ServiceLookup: ::logimesh::discover::ServiceLookup>(self,config: ::logimesh::client::stub::lrcall::Config<ServiceLookup>) -> #client_ident<::logimesh::client::stub::lrcall::LRCall<#server_ident<Self>, ServiceLookup>> {
                     ::logimesh::client::stub::lrcall::LRCall::new(#server_ident { service: self }, config).into()
                 }
             }
@@ -509,7 +510,8 @@ impl<'a> ServiceGenerator<'a> {
             {
             }
 
-            #[doc = #channel_doc]
+            #[doc = #channel_doc1]
+            #[doc = #channel_doc2]
             #vis type #channel_ident = ::logimesh::client::Channel<#request_ident, #response_ident>;
         }
     }

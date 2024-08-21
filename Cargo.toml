@@ -30,6 +30,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 tarpc = { workspace = true, features = ["full"] }
 logimesh-macro = { workspace = true, features = ["serde1"] }
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }

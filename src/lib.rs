@@ -12,7 +12,7 @@
 pub use logimesh_macro::{derive_serde, service};
 
 pub mod client;
-
+pub mod discover;
 /// re-public `tarpc` crate something.
 pub use crate::tarpc::*;
 
