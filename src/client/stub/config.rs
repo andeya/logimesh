@@ -10,6 +10,8 @@
 pub struct Config<ServiceLookup> {
     /// service name, recommended format is `Product.System.Module`
     pub service_name: String,
+    /// Transport serde codec
+    pub transport_codec: TransportCodec,
     /// service lookup engine
     pub service_lookup: ServiceLookup,
     /// load balance type
@@ -63,16 +65,3 @@ impl Default for TransportCodec {
         TransportCodec::Bincode
     }
 }
-
-// impl TransportCodec {
-//     pub fn codec(&self) {
-//         match self {
-//             TransportCodec::Bincode => formats::Bincode::default(),
-//             TransportCodec::Json => formats::Json::default(),
-//             #[cfg(feature = "serde-transport-messagepack")]
-//             MessagePack => todo!(),
-//             #[cfg(feature = "serde-transport-cbor")]
-//             Cbor => todo!(),
-//         }
-//     }
-// }

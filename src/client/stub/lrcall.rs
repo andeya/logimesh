@@ -8,12 +8,13 @@
 
 use std::sync::Arc;
 
-use anyhow::Ok;
-
-use crate::client::stub::{Config, Stub};
+use crate::client::stub::config::TransportCodec;
+use crate::client::stub::{formats, Config, Stub};
 use crate::client::{Channel, RpcError};
 use crate::discover::ServiceInfo;
+use crate::serde_transport::tcp;
 use crate::{context, discover, server};
+use anyhow::Ok;
 
 /// A client stbu that supports both local calls and remote calls.
 pub struct LRCall<Serve, ServiceLookup, RetryFn> {
@@ -52,15 +53,15 @@ where
     fn lookup_service(&self) -> anyhow::Result<Arc<Vec<ServiceInfo>>> {
         self.config.service_lookup.lookup_service(self.config.service_name.as_str())
     }
-    async fn new_lb_stub(&self, info_list: Vec<ServiceInfo>) {}
-    async fn new_channels_with_info(&self, info_list: Vec<ServiceInfo>) -> Vec<StubWithMeta<Channel<Serve::Req, Serve::Resp>>> {
+    async fn new_lb_stub(&self, _info_list: Vec<ServiceInfo>) {}
+    async fn new_channels_with_info(&self, info_list: Vec<ServiceInfo>) -> Vec<ChannelWithInfo<Serve>> {
         let mut stub_list = vec![];
         for service_info in info_list {
             match service_info.call_type {
                 discover::CallType::Local => {},
                 discover::CallType::Remote => match self.new_channel(service_info.address.as_str()).await {
-                    core::result::Result::Ok(stub) => {
-                        stub_list.push(StubWithMeta { service_info, stub });
+                    core::result::Result::Ok(channel) => {
+                        stub_list.push(ChannelWithInfo { service_info, channel });
                     },
                     Err(e) => {
                         // TODO
@@ -71,10 +72,39 @@ where
         }
         stub_list
     }
+    async fn reconnent(&self, chan_with_info: &mut ChannelWithInfo<Serve>) -> Result<(), anyhow::Error> {
+        chan_with_info.channel = self.new_channel(chan_with_info.service_info.address.as_str()).await?;
+        Ok(())
+    }
     async fn new_channel(&self, address: &str) -> Result<Channel<Serve::Req, Serve::Resp>, anyhow::Error> {
-        let mut transport = crate::serde_transport::tcp::connect(address, crate::client::stub::formats::Json::default);
-        transport.config_mut().max_frame_length(usize::MAX);
-        Ok(tarpc::client::new(self.stub_config.clone(), transport.await?).spawn())
+        match self.config.transport_codec {
+            TransportCodec::Bincode => {
+                // Bincode codec using [bincode](https://docs.rs/bincode) crate.
+                let mut conn = tcp::connect(address, formats::Bincode::default);
+                conn.config_mut().max_frame_length(usize::MAX);
+                Ok(tarpc::client::new(self.stub_config.clone(), conn.await?).spawn())
+            },
+            TransportCodec::Json => {
+                // JSON codec using [serde_json](https://docs.rs/serde_json) crate.
+                let mut conn = tcp::connect(address, formats::Json::default);
+                conn.config_mut().max_frame_length(usize::MAX);
+                Ok(tarpc::client::new(self.stub_config.clone(), conn.await?).spawn())
+            },
+            #[cfg(feature = "serde-transport-messagepack")]
+            MessagePack => {
+                /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
+                let mut conn = tcp::connect(address, formats::MessagePack::default);
+                conn.config_mut().max_frame_length(usize::MAX);
+                Ok(tarpc::client::new(self.stub_config.clone(), conn.await?).spawn())
+            },
+            #[cfg(feature = "serde-transport-cbor")]
+            Cbor => {
+                /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
+                let mut conn = tcp::connect(address, formats::Cbor::default);
+                conn.config_mut().max_frame_length(usize::MAX);
+                Ok(tarpc::client::new(self.stub_config.clone(), conn.await?).spawn())
+            },
+        }
     }
 }
 
@@ -92,19 +122,16 @@ where
     }
 }
 
-struct StubWithMeta<Stub> {
+struct ChannelWithInfo<Serve: server::Serve> {
     service_info: ServiceInfo,
-    stub: Stub,
+    channel: Channel<Serve::Req, Serve::Resp>,
 }
 
-impl<Stub> crate::client::stub::Stub for StubWithMeta<Stub>
-where
-    Stub: crate::client::stub::Stub,
-{
-    type Req = Stub::Req;
-    type Resp = Stub::Resp;
+impl<Serve: server::Serve> crate::client::stub::Stub for ChannelWithInfo<Serve> {
+    type Req = Serve::Req;
+    type Resp = Serve::Resp;
 
     async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Self::Resp, RpcError> {
-        self.stub.call(ctx, request).await
+        self.channel.call(ctx, request).await
     }
 }
