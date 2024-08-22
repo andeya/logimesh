@@ -340,12 +340,15 @@ pub fn component(attr: TokenStream, input: TokenStream) -> TokenStream {
     let derives = match derive_meta.derive.as_ref() {
         Some(Derive::Explicit(paths)) => {
             if !paths.is_empty() {
+                // FIXME: Remove duplicate "derive serde".
                 Some(quote! {
                     #[derive(
                         #(
                             #paths
                         ),*
                     )]
+                    #[derive(::logimesh::serde::Serialize, ::logimesh::serde::Deserialize)]
+                    #[serde(crate = "::logimesh::serde")]
                 })
             } else {
                 None

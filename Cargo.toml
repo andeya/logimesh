@@ -63,6 +63,14 @@ tokio-serde = { workspace = true, features = ["json", "bincode"] }
 trybuild = { workspace = true }
 tokio-rustls = { workspace = true }
 rustls-pemfile = { workspace = true }
+
+
+[features]
+default = []
+full = ["serde-transport-messagepack", "serde-transport-cbor"]
+serde-transport-messagepack = ["tokio-serde/messagepack"]
+serde-transport-cbor = ["tokio-serde/cbor"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
