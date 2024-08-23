@@ -6,13 +6,13 @@
 //! A client stbu that supports both local calls and remote calls.
 #![allow(dead_code)]
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 use crate::client::stub::config::TransportCodec;
 use crate::client::stub::{formats, Config, Stub};
 use crate::client::{Channel, RpcError};
-use crate::discover::ServiceInfo;
+use crate::discover::{CallType, ServiceInfo};
 use crate::serde_transport::tcp;
 use crate::{context, discover, server};
 
@@ -43,7 +43,8 @@ where
                 config,
                 stub_config,
                 retry_fn,
-                rpc_channels: Cell::new(vec![]),
+                call_type: Cell::new(CallType::Local),
+                rpc_channels: RefCell::new(vec![]),
                 warm_up_error: None,
             },
         }
@@ -64,7 +65,8 @@ where
     stub_config: tarpc::client::Config,
     serve: Serve,
     retry_fn: RetryFn,
-    rpc_channels: Cell<Vec<ChannelWithInfo<Serve>>>,
+    call_type: Cell<CallType>,
+    rpc_channels: RefCell<Vec<ChannelWithInfo<Serve>>>,
     warm_up_error: Option<anyhow::Error>,
 }
 
@@ -88,9 +90,7 @@ where
         // TODO
         let service_info = self.lookup_service();
         match service_info {
-            Ok(service_info) => {
-                self.rpc_channels.set(self.new_channels_with_info(service_info).await?);
-            },
+            Ok(service_info) => *self.rpc_channels.borrow_mut() = self.new_channels_with_info(service_info).await?,
             Err(e) => {
                 // TODO
                 println!("{:?}", e)
@@ -116,6 +116,7 @@ where
                 }
             },
         }
+        self.call_type.set(service_info.call_type);
         Ok(stub_list)
     }
 }
@@ -129,8 +130,14 @@ where
     type Req = Serve::Req;
     type Resp = Serve::Resp;
 
-    async fn call(&self, _: context::Context, _request: Self::Req) -> Result<Self::Resp, RpcError> {
-        todo!()
+    async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Self::Resp, RpcError> {
+        match self.call_type.get() {
+            CallType::Local => self.serve.call(ctx, request).await,
+            CallType::Remote => match self.rpc_channels.borrow().get(0) {
+                Some(chan) => chan.call(ctx, request).await,
+                None => Err(RpcError::Shutdown),
+            },
+        }
     }
 }
 

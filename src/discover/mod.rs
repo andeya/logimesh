@@ -36,7 +36,7 @@ pub struct ServiceInfo {
 }
 
 /// Call Type.
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
 #[repr(u8)]
 pub enum CallType {
     /// Local call type.
