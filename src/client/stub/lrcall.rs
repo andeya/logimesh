@@ -16,12 +16,55 @@ use crate::discover::ServiceInfo;
 use crate::serde_transport::tcp;
 use crate::{context, discover, server};
 
+/// Create a builder for a client stub that supports both local and remote calls.
+pub struct NewLRCall<Serve, ServiceLookup, RetryFn>
+where
+    Serve: server::Serve,
+{
+    lrcall: LRCall<Serve, ServiceLookup, RetryFn>,
+}
+
+impl<Serve, ServiceLookup, RetryFn> NewLRCall<Serve, ServiceLookup, RetryFn>
+where
+    Serve: server::Serve + Clone,
+    Serve::Req: crate::serde::Serialize + Send + 'static,
+    Serve::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
+    ServiceLookup: discover::ServiceLookup,
+    RetryFn: Fn(&Result<Serve::Resp, RpcError>, u32) -> bool,
+{
+    /// Return a new client stbu that supports both local calls and remote calls.
+    pub fn new(serve: Serve, config: Config<ServiceLookup>, retry_fn: RetryFn) -> Self {
+        let mut stub_config = tarpc::client::Config::default();
+        stub_config.max_in_flight_requests = config.max_in_flight_requests;
+        stub_config.pending_request_buffer = config.pending_request_buffer;
+        Self {
+            lrcall: LRCall {
+                serve,
+                config,
+                stub_config,
+                retry_fn,
+                rpc_channels: Cell::new(vec![]),
+                warm_up_error: None,
+            },
+        }
+    }
+
+    /// Spawn a client stbu that supports both local calls and remote calls.
+    pub async fn spawn(self) -> Result<LRCall<Serve, ServiceLookup, RetryFn>, RpcError> {
+        self.lrcall.warm_up().await
+    }
+}
+
 /// A client stbu that supports both local calls and remote calls.
-pub struct LRCall<Serve, ServiceLookup, RetryFn> {
+pub struct LRCall<Serve, ServiceLookup, RetryFn>
+where
+    Serve: server::Serve,
+{
     config: Config<ServiceLookup>,
     stub_config: tarpc::client::Config,
     serve: Serve,
     retry_fn: RetryFn,
+    rpc_channels: Cell<Vec<ChannelWithInfo<Serve>>>,
     warm_up_error: Option<anyhow::Error>,
 }
 
@@ -33,44 +76,47 @@ where
     ServiceLookup: discover::ServiceLookup,
     RetryFn: Fn(&Result<Serve::Resp, RpcError>, u32) -> bool,
 {
-    /// Return a new client stbu that supports both local calls and remote calls.
-    pub fn new(serve: impl Into<Serve>, config: Config<ServiceLookup>, retry_fn: RetryFn) -> Self {
-        let mut stub_config = tarpc::client::Config::default();
-        stub_config.max_in_flight_requests = config.max_in_flight_requests;
-        stub_config.pending_request_buffer = config.pending_request_buffer;
-        Self {
-            serve: serve.into(),
-            config,
-            stub_config,
-            retry_fn,
-            warm_up_error: None,
-        }
-        .warm_up()
+    /// Warm up client stubs.
+    async fn warm_up(self) -> Result<Self, RpcError> {
+        self.init_lb_stub().await?;
+        Ok(self)
     }
-    fn warm_up(self) -> Self {
-        self
-    }
-    fn lookup_service(&self) -> anyhow::Result<Arc<Vec<ServiceInfo>>> {
+    fn lookup_service(&self) -> anyhow::Result<Arc<ServiceInfo>> {
         self.config.service_lookup.lookup_service(self.config.service_name.as_str())
     }
-    async fn new_lb_stub(&self, _info_list: Vec<ServiceInfo>) {}
-    async fn new_channels_with_info(&self, info_list: Vec<ServiceInfo>) -> Vec<ChannelWithInfo<Serve>> {
-        let mut stub_list = vec![];
-        for service_info in info_list {
-            match service_info.call_type {
-                discover::CallType::Local => {},
-                discover::CallType::Remote => match ChannelWithInfo::new(service_info, self.config.transport_codec.clone(), self.stub_config.clone()).await {
-                    core::result::Result::Ok(channel) => {
-                        stub_list.push(channel);
-                    },
-                    Err(e) => {
-                        // TODO
-                        println!("{:?}", e)
-                    },
-                },
-            }
+    async fn init_lb_stub(&self) -> Result<(), RpcError> {
+        // TODO
+        let service_info = self.lookup_service();
+        match service_info {
+            Ok(service_info) => {
+                self.rpc_channels.set(self.new_channels_with_info(service_info).await?);
+            },
+            Err(e) => {
+                // TODO
+                println!("{:?}", e)
+            },
         }
-        stub_list
+        Ok(())
+    }
+    async fn new_channels_with_info(&self, service_info: Arc<ServiceInfo>) -> Result<Vec<ChannelWithInfo<Serve>>, RpcError> {
+        let mut stub_list = vec![];
+        match service_info.call_type {
+            discover::CallType::Local => {},
+            discover::CallType::Remote => {
+                for address in service_info.addresses.clone() {
+                    match ChannelWithInfo::new(address, self.config.transport_codec.clone(), self.stub_config.clone()).await {
+                        core::result::Result::Ok(channel) => {
+                            stub_list.push(channel);
+                        },
+                        Err(e) => {
+                            // TODO
+                            println!("{:?}", e)
+                        },
+                    }
+                }
+            },
+        }
+        Ok(stub_list)
     }
 }
 
@@ -89,7 +135,7 @@ where
 }
 
 struct ChannelWithInfo<Serve: server::Serve> {
-    service_info: ServiceInfo,
+    address: String,
     transport_codec: TransportCodec,
     stub_config: tarpc::client::Config,
     channel: Channel<Serve::Req, Serve::Resp>,
@@ -115,10 +161,10 @@ where
     Serve::Req: crate::serde::Serialize + Send + 'static,
     Serve::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
 {
-    async fn new(service_info: ServiceInfo, transport_codec: TransportCodec, stub_config: tarpc::client::Config) -> Result<Self, anyhow::Error> {
-        let channe = Self::new_channel(transport_codec.clone(), stub_config.clone(), service_info.address.as_str()).await?;
+    async fn new(address: String, transport_codec: TransportCodec, stub_config: tarpc::client::Config) -> Result<Self, anyhow::Error> {
+        let channe = Self::new_channel(transport_codec.clone(), stub_config.clone(), address.as_str()).await?;
         Ok(Self {
-            service_info,
+            address,
             transport_codec,
             stub_config,
             channel: channe,
@@ -156,7 +202,7 @@ where
         }
     }
     async fn reconnent(&mut self) -> Result<(), anyhow::Error> {
-        self.channel = Self::new_channel(self.transport_codec.clone(), self.stub_config.clone(), self.service_info.address.as_str()).await?;
+        self.channel = Self::new_channel(self.transport_codec.clone(), self.stub_config.clone(), self.address.as_str()).await?;
         self.is_shutdown.set(false);
         Ok(())
     }

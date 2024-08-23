@@ -492,10 +492,19 @@ impl<'a> ComponentGenerator<'a> {
                 }
 
                 /// Returns a client that supports both local calls and remote calls.
-                fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(self,config: ::logimesh::client::stub::Config<ServiceLookup>) -> #client_ident<::logimesh::client::stub::LRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool>> {
-                    let stub: ::logimesh::client::stub::LRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool> = 
-                        ::logimesh::client::stub::LRCall::new(#server_ident { component: self }, config, Self::logimesh_should_retry);
-                    stub.into()
+                async fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(
+                    self,
+                    config: ::logimesh::client::stub::Config<ServiceLookup>,
+                ) -> ::core::result::Result<
+                    #client_ident<::logimesh::client::stub::LRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool>>,
+                    ::logimesh::client::RpcError,
+                > {
+                    let stub: ::logimesh::client::stub::NewLRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool> =
+                        ::logimesh::client::stub::NewLRCall::new(#server_ident { component: self }, config, Self::logimesh_should_retry);
+                    match stub.spawn().await {
+                        Ok(stub) => Ok(stub.into()),
+                        Err(e) => Err(e),
+                    }
                 }
 
                 /// Judge whether a retry should be made according to the result returned by the call.

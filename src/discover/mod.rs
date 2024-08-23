@@ -21,7 +21,7 @@ pub trait ServiceRegister {
 /// Service lookup.
 pub trait ServiceLookup {
     /// Returns service information
-    fn lookup_service(&self, service_name: &str) -> anyhow::Result<Arc<Vec<ServiceInfo>>>;
+    fn lookup_service(&self, service_name: &str) -> anyhow::Result<Arc<ServiceInfo>>;
 }
 
 /// Service information.
@@ -30,7 +30,7 @@ pub struct ServiceInfo {
     /// service name
     pub name: String,
     /// service address, e.g. 172.0.10.10:8888
-    pub address: String,
+    pub addresses: Vec<String>,
     /// call type, such as local, remote.
     pub call_type: CallType,
 }

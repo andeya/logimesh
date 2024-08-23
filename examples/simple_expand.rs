@@ -13,13 +13,19 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone {
         ServeWorld { component: self }
     }
     #[doc = r" Returns a client that supports both local calls and remote calls."]
-    fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(
+    async fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(
         self,
         config: ::logimesh::client::stub::Config<ServiceLookup>,
-    ) -> WorldClient<::logimesh::client::stub::LRCall<ServeWorld<Self>, ServiceLookup, fn(&::core::result::Result<WorldResponse, ::logimesh::client::RpcError>, u32) -> bool>> {
-        let stub: ::logimesh::client::stub::LRCall<ServeWorld<Self>, ServiceLookup, fn(&::core::result::Result<WorldResponse, ::logimesh::client::RpcError>, u32) -> bool> =
-            ::logimesh::client::stub::LRCall::new(ServeWorld { component: self }, config, Self::logimesh_should_retry);
-        stub.into()
+    ) -> ::core::result::Result<
+        WorldClient<::logimesh::client::stub::LRCall<ServeWorld<Self>, ServiceLookup, fn(&::core::result::Result<WorldResponse, ::logimesh::client::RpcError>, u32) -> bool>>,
+        ::logimesh::client::RpcError,
+    > {
+        let stub: ::logimesh::client::stub::NewLRCall<ServeWorld<Self>, ServiceLookup, fn(&::core::result::Result<WorldResponse, ::logimesh::client::RpcError>, u32) -> bool> =
+            ::logimesh::client::stub::NewLRCall::new(ServeWorld { component: self }, config, Self::logimesh_should_retry);
+        match stub.spawn().await {
+            Ok(stub) => Ok(stub.into()),
+            Err(e) => Err(e),
+        }
     }
     #[doc = r" Judge whether a retry should be made according to the result returned by the call."]
     #[doc = r" When `::logimesh::client::stub::Config.enable_retry` is true, the method will be called."]
