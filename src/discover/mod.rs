@@ -81,11 +81,20 @@ where
 impl<F> Copy for ServiceLookupFn<F> where F: Copy {}
 
 /// Creates a [`ServiceLookup`] wrapper around a `Fn(&str) -> anyhow::Result<Arc<ServiceInfo>>`.
-pub fn service_lookup<F>(f: F) -> ServiceLookupFn<F>
+pub fn service_lookup_from_fn<F>(f: F) -> ServiceLookupFn<F>
 where
     F: Fn(&str) -> anyhow::Result<Arc<ServiceInfo>>,
 {
     ServiceLookupFn { f, data: PhantomData }
+}
+
+/// Create a [`ServiceLookup`] from a set of fixed addresses.
+pub fn service_lookup_from_addresses(addresses: Vec<String>) -> ServiceLookupFn<impl Fn(&str) -> anyhow::Result<Arc<ServiceInfo>>> {
+    let addresses = Arc::new(addresses);
+    ServiceLookupFn {
+        f: move |service_name: &str| Ok(Arc::new(ServiceInfo::new(service_name.into(), Vec::from_iter(addresses.iter().cloned())))),
+        data: PhantomData,
+    }
 }
 
 impl<F> ServiceLookup for ServiceLookupFn<F>
