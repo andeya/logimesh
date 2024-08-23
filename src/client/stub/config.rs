@@ -46,7 +46,7 @@ impl Default for LoadBalance {
 pub use crate::tokio_serde::formats;
 
 /// Transport serde codec
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TransportCodec {
     /// Bincode codec using [bincode](https://docs.rs/bincode) crate.
     Bincode,
