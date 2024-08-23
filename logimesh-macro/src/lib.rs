@@ -494,7 +494,7 @@ impl<'a> ComponentGenerator<'a> {
                 /// Returns a client that supports both local calls and remote calls.
                 async fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(
                     self,
-                    config: ::logimesh::client::stub::Config<ServiceLookup>,
+                    config: ::logimesh::client::stub::LRConfig<ServiceLookup>,
                 ) -> ::core::result::Result<
                     #client_ident<::logimesh::client::stub::LRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool>>,
                     ::logimesh::client::RpcError,

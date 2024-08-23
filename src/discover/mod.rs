@@ -6,6 +6,7 @@
 //!
 //! Service discover.
 
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// Service discover.
@@ -26,6 +27,7 @@ pub trait ServiceLookup {
 
 /// Service information.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[non_exhaustive]
 pub struct ServiceInfo {
     /// service name
     pub name: String,
@@ -35,6 +37,21 @@ pub struct ServiceInfo {
     pub call_type: CallType,
 }
 
+impl ServiceInfo {
+    /// Create a service information.
+    pub fn new(name: String, addresses: Vec<String>) -> Self {
+        Self {
+            name,
+            addresses,
+            call_type: CallType::Remote,
+        }
+    }
+    /// Set call type.
+    pub fn with_call_type(mut self, call_type: CallType) -> Self {
+        self.call_type = call_type;
+        self
+    }
+}
 /// Call Type.
 #[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
 #[repr(u8)]
@@ -43,4 +60,39 @@ pub enum CallType {
     Local = 0,
     /// Remote call type.
     Remote = 1,
+}
+
+/// A ServiceLookup wrapper around a Fn.
+#[derive(Debug)]
+pub struct ServiceLookupFn<F> {
+    f: F,
+    data: PhantomData<fn(&str) -> anyhow::Result<Arc<ServiceInfo>>>,
+}
+
+impl<F> Clone for ServiceLookupFn<F>
+where
+    F: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { f: self.f.clone(), data: PhantomData }
+    }
+}
+
+impl<F> Copy for ServiceLookupFn<F> where F: Copy {}
+
+/// Creates a [`ServiceLookup`] wrapper around a `Fn(&str) -> anyhow::Result<Arc<ServiceInfo>>`.
+pub fn service_lookup<F>(f: F) -> ServiceLookupFn<F>
+where
+    F: Fn(&str) -> anyhow::Result<Arc<ServiceInfo>>,
+{
+    ServiceLookupFn { f, data: PhantomData }
+}
+
+impl<F> ServiceLookup for ServiceLookupFn<F>
+where
+    F: Fn(&str) -> anyhow::Result<Arc<ServiceInfo>>,
+{
+    fn lookup_service(&self, service_name: &str) -> anyhow::Result<Arc<ServiceInfo>> {
+        (self.f)(service_name)
+    }
 }

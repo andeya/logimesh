@@ -5,15 +5,18 @@
 // https://opensource.org/licenses/MIT.
 //! A client stbu config.
 
-/// A client stbu config.
+use crate::discover;
+pub use crate::tokio_serde::formats;
+
+/// A lrcall client stbu config.
 #[non_exhaustive]
-pub struct Config<ServiceLookup> {
+pub struct LRConfig<ServiceLookup> {
     /// service name, recommended format is `Product.System.Module`
     pub service_name: String,
-    /// Transport serde codec
-    pub transport_codec: TransportCodec,
     /// service lookup engine
     pub service_lookup: ServiceLookup,
+    /// Transport serde codec
+    pub transport_codec: TransportCodec,
     /// load balance type
     pub load_balance: LoadBalance,
     /// Whether to enable the retry call function.
@@ -21,11 +24,63 @@ pub struct Config<ServiceLookup> {
     /// The number of requests that can be in flight at once.
     /// `max_in_flight_requests` controls the size of the map used by the client
     /// for storing pending requests.
+    /// Default is 1000.
     pub max_in_flight_requests: usize,
     /// The number of requests that can be buffered client-side before being sent.
     /// `pending_requests_buffer` controls the size of the channel clients use
     /// to communicate with the request dispatch task.
+    /// Default is 100.
     pub pending_request_buffer: usize,
+}
+
+impl<ServiceLookup> LRConfig<ServiceLookup>
+where
+    ServiceLookup: discover::ServiceLookup,
+{
+    /// Create a rlcall's config
+    pub fn new(service_name: String, service_lookup: ServiceLookup) -> Self {
+        let conf = tarpc::client::Config::default();
+        Self {
+            service_name,
+            service_lookup,
+            transport_codec: Default::default(),
+            load_balance: Default::default(),
+            enable_retry: Default::default(),
+            max_in_flight_requests: conf.max_in_flight_requests,
+            pending_request_buffer: conf.pending_request_buffer,
+        }
+    }
+    /// Set transport serde codec
+    pub fn with_transport_codec(mut self, transport_codec: TransportCodec) -> Self {
+        self.transport_codec = transport_codec;
+        self
+    }
+    /// Set load balance type
+    pub fn with_load_balance(mut self, load_balance: LoadBalance) -> Self {
+        self.load_balance = load_balance;
+        self
+    }
+    /// Whether to enable the retry call function.
+    pub fn with_enable_retry(mut self, enable_retry: bool) -> Self {
+        self.enable_retry = enable_retry;
+        self
+    }
+    /// The number of requests that can be in flight at once.
+    /// `max_in_flight_requests` controls the size of the map used by the client
+    /// for storing pending requests.
+    /// Default is 1000.
+    pub fn with_max_in_flight_requests(mut self, max_in_flight_requests: usize) -> Self {
+        self.max_in_flight_requests = max_in_flight_requests;
+        self
+    }
+    /// The number of requests that can be buffered client-side before being sent.
+    /// `pending_requests_buffer` controls the size of the channel clients use
+    /// to communicate with the request dispatch task.
+    /// Default is 100.
+    pub fn with_pending_request_buffer(mut self, pending_request_buffer: usize) -> Self {
+        self.pending_request_buffer = pending_request_buffer;
+        self
+    }
 }
 
 /// Load balance type
@@ -42,8 +97,6 @@ impl Default for LoadBalance {
         LoadBalance::RoundRobin
     }
 }
-
-pub use crate::tokio_serde::formats;
 
 /// Transport serde codec
 #[derive(Debug, Clone)]

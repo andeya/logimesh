@@ -15,7 +15,7 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone {
     #[doc = r" Returns a client that supports both local calls and remote calls."]
     async fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(
         self,
-        config: ::logimesh::client::stub::Config<ServiceLookup>,
+        config: ::logimesh::client::stub::LRConfig<ServiceLookup>,
     ) -> ::core::result::Result<
         WorldClient<::logimesh::client::stub::LRCall<ServeWorld<Self>, ServiceLookup, fn(&::core::result::Result<WorldResponse, ::logimesh::client::RpcError>, u32) -> bool>>,
         ::logimesh::client::RpcError,

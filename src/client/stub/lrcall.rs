@@ -10,7 +10,7 @@ use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 use crate::client::stub::config::TransportCodec;
-use crate::client::stub::{formats, Config, Stub};
+use crate::client::stub::{formats, LRConfig, Stub};
 use crate::client::{Channel, RpcError};
 use crate::discover::{CallType, ServiceInfo};
 use crate::serde_transport::tcp;
@@ -33,7 +33,7 @@ where
     RetryFn: Fn(&Result<Serve::Resp, RpcError>, u32) -> bool,
 {
     /// Return a new client stbu that supports both local calls and remote calls.
-    pub fn new(serve: Serve, config: Config<ServiceLookup>, retry_fn: RetryFn) -> Self {
+    pub fn new(serve: Serve, config: LRConfig<ServiceLookup>, retry_fn: RetryFn) -> Self {
         let mut stub_config = tarpc::client::Config::default();
         stub_config.max_in_flight_requests = config.max_in_flight_requests;
         stub_config.pending_request_buffer = config.pending_request_buffer;
@@ -61,7 +61,7 @@ pub struct LRCall<Serve, ServiceLookup, RetryFn>
 where
     Serve: server::Serve,
 {
-    config: Config<ServiceLookup>,
+    config: LRConfig<ServiceLookup>,
     stub_config: tarpc::client::Config,
     serve: Serve,
     retry_fn: RetryFn,
