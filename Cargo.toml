@@ -32,6 +32,8 @@ tarpc = { workspace = true, features = ["full"] }
 logimesh-macro = { workspace = true, features = ["serde1"] }
 serde = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }
+tower = { workspace = true }
+futures = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
@@ -116,6 +118,7 @@ tracing = { version = "0.1", default-features = false }
 tracing-opentelemetry = { version = "0.25.0", default-features = false }
 opentelemetry = { version = "0.24.0", default-features = false }
 opentelemetry-semantic-conventions = "0.16.0"
+tower = "0.5.0"
 
 # only for dev-dependencies
 assert-type-eq = "0.1.0"

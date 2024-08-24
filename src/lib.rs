@@ -8,6 +8,7 @@
 #![deny(missing_docs)]
 #![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![feature(impl_trait_in_assoc_type)]
 
 pub use logimesh_macro::{component, derive_serde};
 

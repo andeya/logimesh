@@ -6,8 +6,14 @@
 //! A client stbu that supports both local calls and remote calls.
 #![allow(dead_code)]
 
+use core::alloc;
 use std::cell::{Cell, RefCell};
+use std::future::Future;
+use std::marker::PhantomData;
+use std::pin::Pin;
 use std::sync::Arc;
+
+use futures::future::{BoxFuture, FutureExt};
 
 use crate::client::stub::config::TransportCodec;
 use crate::client::stub::{formats, LRConfig, Stub};
@@ -212,5 +218,30 @@ where
         self.channel = Self::new_channel(self.transport_codec.clone(), self.stub_config.clone(), self.address.as_str()).await?;
         self.is_shutdown.set(false);
         Ok(())
+    }
+}
+
+impl<Serve> tower::Service<(context::Context, Serve::Req)> for ChannelWithInfo<Serve>
+where
+    Serve: server::Serve + Clone + Send + Sync,
+    Serve::Req: crate::serde::Serialize + Send + 'static,
+    Serve::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
+{
+    type Response = Serve::Resp;
+    type Error = RpcError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    // type Future = impl Future<Output = Result<Self::Response, Self::Error>> + Send;
+
+    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+        todo!()
+    }
+
+    fn call(&mut self, (ctx, request): (context::Context, Serve::Req)) -> Self::Future {
+        let chan = self.channel.clone();
+        async move {
+            let result = chan.call(ctx, request).await;
+            result.map_err(|error| error.into())
+        }
+        .boxed()
     }
 }
