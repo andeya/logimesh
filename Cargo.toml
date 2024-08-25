@@ -32,6 +32,19 @@ tarpc = { workspace = true, features = ["full"] }
 logimesh-macro = { workspace = true, features = ["serde1"] }
 serde = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }
+pin-project-lite = { workspace = true }
+futures-core = { workspace = true }
+futures-util = { workspace = true, features = ["alloc"] }
+async-broadcast = { workspace = true }
+socket2 = { workspace = true, features = ["all"] }
+tokio = { workspace = true, features = [
+    "full",
+    "test-util",
+    "tracing",
+    "rt-multi-thread",
+    "macros",
+] }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
@@ -97,12 +110,16 @@ logimesh = { path = "./" }
 # all dependencies
 
 tarpc = { package = "tarpc-copy", version = "=0.34.0-copy.f81ddd6" }
+async-broadcast = "0.7"
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = "2.0.74"
 anyhow = "1.0"
 fnv = "1.0"
-futures = "0.3"
+futures = "0.3.22"
+futures-core = "0.3.22"
+futures-util = { version = "0.3.22", default-features = false }
+pin-project-lite = "0.2.7"
 humantime = "2.0"
 pin-project = "1.0"
 rand = "0.8"
@@ -116,6 +133,7 @@ tracing = { version = "0.1", default-features = false }
 tracing-opentelemetry = { version = "0.25.0", default-features = false }
 opentelemetry = { version = "0.24.0", default-features = false }
 opentelemetry-semantic-conventions = "0.16.0"
+socket2 = "0.5"
 
 # only for dev-dependencies
 assert-type-eq = "0.1.0"

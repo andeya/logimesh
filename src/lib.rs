@@ -8,11 +8,12 @@
 #![deny(missing_docs)]
 #![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![feature(associated_type_defaults)]
 
 pub use logimesh_macro::{component, derive_serde};
-
 pub mod client;
-pub mod discover;
+pub mod endpoint;
+pub mod net;
 /// re-public `tarpc` crate something.
 pub use crate::tarpc::*;
 
@@ -33,3 +34,11 @@ mod tarpc {
 
     pub use ::tarpc::{ChannelError, ClientMessage, Request, RequestName, Response, ServerError};
 }
+
+#[allow(unreachable_pub)]
+mod sealed {
+    pub trait Sealed<T> {}
+}
+
+/// Alias for a type-erased error type.
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
