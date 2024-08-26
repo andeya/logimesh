@@ -4,21 +4,23 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 //! RPC Channel
-use std::cell::Cell;
-
 use super::CoreConfig;
+use crate::client::discover::Instance;
 use crate::client::{Channel, RpcError};
 use crate::context;
+use crate::net::Address;
 use crate::server::Serve;
 pub use crate::transport::codec::*;
 use crate::transport::tcp;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// Settings that control the behavior of the RPC client.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct RpcConfig {
-    /// server address.
-    pub address: String,
+    /// service instance.
+    pub instance: Instance,
     /// transport codec type.
     pub transport_codec: Codec,
     /// Settings that control the behavior of the underlying client.
@@ -27,10 +29,9 @@ pub struct RpcConfig {
 
 impl RpcConfig {
     /// Returns a default RpcConfig.
-    pub fn new(address: String) -> Self {
-        let core = CoreConfig::default();
+    pub fn new(instance: Instance) -> Self {
         Self {
-            address,
+            instance,
             transport_codec: Default::default(),
             core_config: CoreConfig::default(),
         }
@@ -63,11 +64,15 @@ impl RpcConfig {
     }
 }
 
+#[derive(Clone)]
 /// RPC channel which is client stub
 pub struct RpcChannel<S: Serve> {
+    inner: Arc<InnerRpcChannel<S>>,
+}
+
+struct InnerRpcChannel<S: Serve> {
     config: RpcConfig,
-    channel: Channel<S::Req, S::Resp>,
-    is_shutdown: Cell<bool>,
+    channel: RwLock<Option<Channel<S::Req, S::Resp>>>,
 }
 
 impl<S: Serve> crate::client::stub::Stub for RpcChannel<S> {
@@ -75,9 +80,13 @@ impl<S: Serve> crate::client::stub::Stub for RpcChannel<S> {
     type Resp = S::Resp;
 
     async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Self::Resp, RpcError> {
-        let res = self.channel.call(ctx, request).await;
+        let res = if let Some(channel) = &*self.inner.channel.read().await {
+            channel.call(ctx, request).await
+        } else {
+            Err(RpcError::Shutdown)
+        };
         if let Err(RpcError::Shutdown) = res {
-            self.is_shutdown.set(true);
+            self.inner.channel.write().await.take();
         }
         res
     }
@@ -90,14 +99,17 @@ where
     S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
 {
     pub(crate) async fn new(config: RpcConfig) -> Result<Self, anyhow::Error> {
-        let channe = Self::new_channel(config.transport_codec.clone(), config.core_config.clone(), config.address.as_str()).await?;
+        let channe = Self::new_channel(config.transport_codec.clone(), config.core_config.clone(), &config.instance.address).await?;
         Ok(Self {
-            config,
-            channel: channe,
-            is_shutdown: Cell::new(false),
+            inner: Arc::new(InnerRpcChannel {
+                config,
+                channel: RwLock::new(Some(channe)),
+            }),
         })
     }
-    async fn new_channel(transport_codec: Codec, stub_config: tarpc::client::Config, address: &str) -> Result<Channel<S::Req, S::Resp>, anyhow::Error> {
+
+    async fn new_channel(transport_codec: Codec, stub_config: tarpc::client::Config, address: &Address) -> Result<Channel<S::Req, S::Resp>, anyhow::Error> {
+        let Address::Ip(address) = address else { anyhow::bail!("invalid address {address}") };
         match transport_codec {
             Codec::Bincode => {
                 // Bincode codec using [bincode](https://docs.rs/bincode) crate.
@@ -127,9 +139,10 @@ where
             },
         }
     }
-    pub(crate) async fn reconnent(&mut self) -> Result<(), anyhow::Error> {
-        self.channel = Self::new_channel(self.config.transport_codec.clone(), self.config.core_config.clone(), self.config.address.as_str()).await?;
-        self.is_shutdown.set(false);
+
+    pub(crate) async fn reconnent(&self) -> Result<(), anyhow::Error> {
+        let channel = Self::new_channel(self.inner.config.transport_codec.clone(), self.inner.config.core_config.clone(), &self.inner.config.instance.address).await?;
+        self.inner.channel.write().await.replace(channel);
         Ok(())
     }
 }

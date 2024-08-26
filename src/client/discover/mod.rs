@@ -6,15 +6,23 @@
 // https://opensource.org/licenses/MIT.
 //!
 //! Client Stub Information discovery
+
+use crate::component::Endpoint;
 use crate::net::address::Address;
-use crate::{component, BoxError};
+use crate::BoxError;
 use async_broadcast::Receiver;
+use faststr::FastStr;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::future::Future;
 use std::hash::Hash;
-use std::net::SocketAddr;
 use std::sync::Arc;
+mod dummy;
+mod fixed;
+use core::marker::Send;
+pub use dummy::DummyDiscover;
+pub use fixed::FixedDiscover;
 
 /// [`Instance`] contains information of an instance from the target service.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,24 +37,18 @@ pub struct Instance {
 
 /// [`Discover`] is the most basic trait for Discover.
 pub trait Discover: Send + Sync + 'static {
-    /// A service information for discovery
-    type Endpoint: component::Endpoint;
-    /// `Key` identifies the endpoint, such as the cluster name.
-    /// NOTE: Be sure to use this default type and do not set other types.  
-    type Key: Hash + PartialEq + Eq + Send + Sync + Clone + 'static = <Self::Endpoint as component::Endpoint>::Key;
     /// `discover` allows to request an endpoint and return a discover future.
-    async fn discover<'s>(&'s self, endpoint: &'s Self::Endpoint) -> Result<Vec<Arc<Instance>>, BoxError>;
+    fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Vec<Arc<Instance>>, BoxError>> + Send;
     /// `watch` should return a [`async_broadcast::Receiver`] which can be used to subscribe
     /// [`Change`].
-    fn watch(&self, keys: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key, Instance>>>;
+    fn watch(&self, keys: Option<&[FastStr]>) -> Option<Receiver<Change<Instance>>>;
 }
 
 /// Change indicates the change of the service discover.
 #[derive(Debug, Clone)]
-pub struct Change<Key, Item> {
-    /// `key` should be the same as the output of `Endpoint::Key`,
-    /// which is often used by cache.
-    pub key: Key,
+pub struct Change<Item> {
+    /// endpoint key
+    pub key: FastStr,
     /// Use local or remote, and specific change information
     pub change: LRChange<Item>,
 }
@@ -122,76 +124,18 @@ where
     (RpcChange { all: next, added, updated, removed }, changed)
 }
 
-/// [`StaticDiscover`] is a simple implementation of [`Discover`] that returns a static list of
-/// instances.
-#[derive(Clone)]
-pub struct StaticDiscover {
-    instances: Vec<Arc<Instance>>,
-}
-
-impl StaticDiscover {
-    /// Creates a new [`StaticDiscover`].
-    pub fn new(instances: Vec<Arc<Instance>>) -> Self {
-        Self { instances }
-    }
-}
-
-impl From<Vec<SocketAddr>> for StaticDiscover {
-    fn from(addrs: Vec<SocketAddr>) -> Self {
-        let instances = addrs
-            .into_iter()
-            .map(|addr| {
-                Arc::new(Instance {
-                    address: Address::Ip(addr),
-                    weight: 1,
-                    tags: Default::default(),
-                })
-            })
-            .collect();
-        Self { instances }
-    }
-}
-
-impl Discover for StaticDiscover {
-    type Endpoint = ();
-
-    async fn discover<'s>(&'s self, _: &'s Self::Endpoint) -> Result<Vec<Arc<Instance>>, BoxError> {
-        Ok(self.instances.clone())
-    }
-
-    fn watch(&self, _keys: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key, Instance>>> {
-        None
-    }
-}
-
-/// [`DummyDiscover`] always returns an empty list.
-///
-/// Users that don't specify the address directly need to use their own [`Discover`].
-#[derive(Clone)]
-pub struct DummyDiscover;
-
-impl Discover for DummyDiscover {
-    type Endpoint = ();
-    async fn discover<'s>(&'s self, _: &'s Self::Endpoint) -> Result<Vec<Arc<Instance>>, BoxError> {
-        Ok(vec![])
-    }
-
-    fn watch(&self, _: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key, Instance>>> {
-        None
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::{FixedDiscover, Instance};
+    use crate::client::discover::Discover;
+    use crate::component::Endpoint;
+    use crate::net::Address;
     use std::sync::Arc;
 
-    use super::{Discover, Instance, StaticDiscover};
-    use crate::net::Address;
-
     #[test]
-    fn test_static_discover() {
-        let discover = StaticDiscover::from(vec!["127.0.0.1:8000".parse().unwrap(), "127.0.0.2:9000".parse().unwrap()]);
-        let resp = futures::executor::block_on(async { discover.discover(&()).await }).unwrap();
+    fn test_fixed_discover() {
+        let discover = FixedDiscover::from(vec!["127.0.0.1:8000".parse().unwrap(), "127.0.0.2:9000".parse().unwrap()]);
+        let resp = futures::executor::block_on(async { discover.discover(&Endpoint::default()).await }).unwrap();
         let expected = vec![
             Arc::new(Instance {
                 address: Address::Ip("127.0.0.1:8000".parse().unwrap()),

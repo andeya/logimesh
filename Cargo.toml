@@ -45,6 +45,8 @@ tokio = { workspace = true, features = [
     "macros",
 ] }
 thiserror = { workspace = true }
+metainfo = { workspace = true }
+faststr = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
@@ -134,6 +136,8 @@ tracing-opentelemetry = { version = "0.25.0", default-features = false }
 opentelemetry = { version = "0.24.0", default-features = false }
 opentelemetry-semantic-conventions = "0.16.0"
 socket2 = "0.5"
+metainfo = "0.7"
+faststr = "0.2"
 
 # only for dev-dependencies
 assert-type-eq = "0.1.0"

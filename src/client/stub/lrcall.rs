@@ -7,26 +7,27 @@
 
 use crate::client::balance::LoadBalance;
 use crate::client::channel::Codec;
-use crate::client::discover::{Change, Discover, Instance};
+use crate::client::discover::Discover;
 use crate::client::stub::Stub;
 use crate::client::{CoreConfig, RpcError};
 use crate::component::Component;
 use crate::server::Serve;
 use crate::BoxError;
-use std::hash::Hash;
 use thiserror::Error;
 
 /// A full client stbu config.
 #[non_exhaustive]
 pub struct Builder<S, D, LB, RF>
 where
-    S: Serve,
+    S: Serve + 'static,
+    S::Req: Send,
+    S::Resp: Send,
     D: Discover,
-    LB: LoadBalance<D::Key, S>,
+    LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
     /// The implementer of the local service.
-    pub(crate) component: Component<S, D::Endpoint>,
+    pub(crate) component: Component<S>,
     /// discover instance.
     pub(crate) discover: D,
     /// load balance instance.
@@ -41,13 +42,15 @@ where
 
 impl<S, D, LB, RF> Builder<S, D, LB, RF>
 where
-    S: Serve,
+    S: Serve + 'static,
+    S::Req: Send,
+    S::Resp: Send,
     D: Discover,
-    LB: LoadBalance<D::Key, S>,
+    LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
     /// Create a LRCall builder.
-    pub fn new(component: Component<S, D::Endpoint>, discover: D, load_balance: LB) -> Self {
+    pub fn new(component: Component<S>, discover: D, load_balance: LB) -> Self {
         Self {
             component,
             discover,
@@ -103,9 +106,11 @@ pub enum LoadBalanceError {
 /// A local and remote client.
 pub struct LRCall<S, D, LB, RF>
 where
-    S: Serve,
+    S: Serve + 'static,
+    S::Req: Send,
+    S::Resp: Send,
     D: Discover,
-    LB: LoadBalance<D::Key, S>,
+    LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
     config: Builder<S, D, LB, RF>,
@@ -113,9 +118,11 @@ where
 
 impl<S, D, LB, RF> LRCall<S, D, LB, RF>
 where
-    S: Serve,
+    S: Serve + 'static,
+    S::Req: Send,
+    S::Resp: Send,
     D: Discover,
-    LB: LoadBalance<D::Key, S>,
+    LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
     async fn warm_up(self) -> Result<Self, RpcError> {
@@ -125,9 +132,11 @@ where
 
 impl<S, D, LB, RF> Stub for LRCall<S, D, LB, RF>
 where
-    S: Serve,
+    S: Serve + 'static,
+    S::Req: Send,
+    S::Resp: Send,
     D: Discover,
-    LB: LoadBalance<D::Key, S>,
+    LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
     type Req = S::Req;

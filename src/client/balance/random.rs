@@ -6,26 +6,28 @@
 //! Random load balance implemention
 
 use super::LoadBalance;
-use std::hash::Hash;
-use tarpc::server::Serve;
+use crate::client::channel::RpcChannel;
+use crate::client::discover::Change;
+use crate::server::Serve;
 
 /// Random load balance implemention
 pub struct RandomBalance;
 
-impl<Key, S> LoadBalance<Key, S> for RandomBalance
+impl<S> LoadBalance<S> for RandomBalance
 where
-    Key: Hash + PartialEq + Eq + Send + Sync + Clone + 'static,
-    S: Serve,
+    S: Serve + 'static,
+    S::Req: Send,
+    S::Resp: Send,
 {
-    fn start_balance(&self, instances: Vec<crate::client::channel::RpcChannel<S>>) {
+    fn start_balance(&self, instances: Vec<RpcChannel<S>>) {
         todo!()
     }
 
-    fn next(&self) -> Option<crate::client::channel::RpcChannel<S>> {
+    fn next(&self) -> Option<RpcChannel<S>> {
         todo!()
     }
 
-    fn rebalance(&self, changes: crate::client::discover::Change<Key, crate::client::channel::RpcChannel<S>>) {
+    fn rebalance(&self, changes: Change<RpcChannel<S>>) {
         todo!()
     }
 }
