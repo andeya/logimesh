@@ -41,7 +41,7 @@ pub trait Discover: Send + Sync + 'static {
     fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Vec<Arc<Instance>>, BoxError>> + Send;
     /// `watch` should return a [`async_broadcast::Receiver`] which can be used to subscribe
     /// [`Change`].
-    fn watch(&self, keys: Option<&[FastStr]>) -> Option<Receiver<Change<Instance>>>;
+    fn watch(&self, keys: Option<&[FastStr]>) -> Option<Receiver<Change<Arc<Instance>>>>;
 }
 
 /// Change indicates the change of the service discover.
@@ -73,13 +73,13 @@ pub enum LRChange<Item> {
 #[derive(Debug, Clone)]
 pub struct RpcChange<Item> {
     /// All service instances list
-    pub all: Vec<Arc<Item>>,
+    pub all: Vec<Item>,
     /// The list of newly added services
-    pub added: Vec<Arc<Item>>,
+    pub added: Vec<Item>,
     /// The list of newly updated services
-    pub updated: Vec<Arc<Item>>,
+    pub updated: Vec<Item>,
     /// The list of newly removed services
-    pub removed: Vec<Arc<Item>>,
+    pub removed: Vec<Item>,
 }
 
 /// [`diff_address`] provides a naive implementation that compares prev and next only by the
@@ -91,7 +91,7 @@ pub struct RpcChange<Item> {
 /// the event to loadbalancer.
 ///
 /// If users need to compare the instances by also weight or tags, they should not use this.
-pub fn diff_address<K>(prev: Vec<Arc<Instance>>, next: Vec<Arc<Instance>>) -> (RpcChange<Instance>, bool)
+pub fn diff_address<K>(prev: Vec<Arc<Instance>>, next: Vec<Arc<Instance>>) -> (RpcChange<Arc<Instance>>, bool)
 where
     K: Hash + PartialEq + Eq + Send + Sync + 'static,
 {

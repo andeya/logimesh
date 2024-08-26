@@ -6,22 +6,25 @@
 //! Local and remote Cclient.
 
 use crate::client::balance::LoadBalance;
-use crate::client::channel::Codec;
-use crate::client::discover::Discover;
+use crate::client::channel::{Codec, RpcChannel, RpcConfig};
+use crate::client::discover::{Change, Discover, Instance, LRChange, RpcChange};
 use crate::client::stub::Stub;
 use crate::client::{CoreConfig, RpcError};
 use crate::component::Component;
 use crate::server::Serve;
 use crate::BoxError;
+use std::ptr;
+use std::sync::atomic::AtomicPtr;
+use std::sync::Arc;
 use thiserror::Error;
-
+use tracing::warn;
 /// A full client stbu config.
 #[non_exhaustive]
 pub struct Builder<S, D, LB, RF>
 where
     S: Serve + 'static,
-    S::Req: Send,
-    S::Resp: Send,
+    S::Req: crate::serde::Serialize + Send + 'static,
+    S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
     D: Discover,
     LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
@@ -29,9 +32,9 @@ where
     /// The implementer of the local service.
     pub(crate) component: Component<S>,
     /// discover instance.
-    pub(crate) discover: D,
+    pub(crate) discover: Arc<D>,
     /// load balance instance.
-    pub(crate) load_balance: LB,
+    pub(crate) load_balance: Arc<LB>,
     /// transport codec type.
     pub(crate) transport_codec: Codec,
     /// Settings that control the behavior of the underlying client.
@@ -43,8 +46,8 @@ where
 impl<S, D, LB, RF> Builder<S, D, LB, RF>
 where
     S: Serve + 'static,
-    S::Req: Send,
-    S::Resp: Send,
+    S::Req: crate::serde::Serialize + Send + 'static,
+    S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
     D: Discover,
     LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
@@ -53,8 +56,8 @@ where
     pub fn new(component: Component<S>, discover: D, load_balance: LB) -> Self {
         Self {
             component,
-            discover,
-            load_balance,
+            discover: Arc::new(discover),
+            load_balance: Arc::new(load_balance),
             transport_codec: Default::default(),
             core_config: Default::default(),
             retry_fn: None,
@@ -87,8 +90,13 @@ where
         self
     }
     /// Build a local and remote client.
-    pub fn build(self) -> LRCall<S, D, LB, RF> {
-        LRCall { config: self }
+    pub async fn try_build(self) -> Result<LRCall<S, D, LB, RF>, BoxError> {
+        LRCall {
+            config: self,
+            channels: AtomicPtr::new(ptr::null_mut()),
+        }
+        .warm_up()
+        .await
     }
 }
 
@@ -107,34 +115,81 @@ pub enum LoadBalanceError {
 pub struct LRCall<S, D, LB, RF>
 where
     S: Serve + 'static,
-    S::Req: Send,
-    S::Resp: Send,
+    S::Req: crate::serde::Serialize + Send + 'static,
+    S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
     D: Discover,
     LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
     config: Builder<S, D, LB, RF>,
+    channels: AtomicPtr<Vec<RpcChannel<S>>>,
 }
 
 impl<S, D, LB, RF> LRCall<S, D, LB, RF>
 where
     S: Serve + 'static,
-    S::Req: Send,
-    S::Resp: Send,
+    S::Req: crate::serde::Serialize + Send + 'static,
+    S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
     D: Discover,
     LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
-    async fn warm_up(self) -> Result<Self, RpcError> {
-        todo!()
+    async fn warm_up(self) -> Result<Self, BoxError> {
+        let instances = self.config.discover.discover(&self.config.component.endpoint).await?;
+        let mut channels: Vec<RpcChannel<S>> = Vec::new();
+        for instance in instances {
+            let channel = RpcChannel::new(RpcConfig {
+                instance,
+                transport_codec: self.config.transport_codec,
+                core_config: self.config.core_config.clone(),
+            })
+            .await;
+            match channel {
+                Ok(channel) => {
+                    channels.push(channel);
+                },
+                Err(e) => {
+                    // TODO
+                    println!("{e:?}");
+                },
+            }
+        }
+
+        self.config.load_balance.start_balance(channels);
+        let load_balance = self.config.load_balance.clone();
+        let transport_codec = self.config.transport_codec;
+        let core_config = self.config.core_config.clone();
+        if let Some(mut recv_change) = self.config.discover.watch(None) {
+            tokio::spawn(async move {
+                loop {
+                    match recv_change.recv().await {
+                        Ok(change) => match Self::convert_and_dial(transport_codec, &core_config, change).await {
+                            Ok(change) => load_balance.rebalance(change),
+                            Err(err) => warn!("[LOGIMESH] TCP connection establishment failed: {:?}", err),
+                        },
+                        Err(err) => warn!("[LOGIMESH] discovering subscription error: {:?}", err),
+                    }
+                }
+            });
+        }
+        Ok(self)
+    }
+
+    async fn convert_and_dial(transport_codec: Codec, core_config: &CoreConfig, change: Change<Arc<Instance>>) -> Result<Option<RpcChange<RpcChannel<S>>>, BoxError> {
+        match change.change {
+            LRChange::Lpc => Ok(None),
+            LRChange::Rpc(lr) => {
+                todo!()
+            },
+        }
     }
 }
 
 impl<S, D, LB, RF> Stub for LRCall<S, D, LB, RF>
 where
     S: Serve + 'static,
-    S::Req: Send,
-    S::Resp: Send,
+    S::Req: crate::serde::Serialize + Send + 'static,
+    S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
     D: Discover,
     LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,

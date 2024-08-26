@@ -12,6 +12,7 @@ use crate::net::Address;
 use crate::server::Serve;
 pub use crate::transport::codec::*;
 use crate::transport::tcp;
+use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -20,7 +21,7 @@ use tokio::sync::RwLock;
 #[non_exhaustive]
 pub struct RpcConfig {
     /// service instance.
-    pub instance: Instance,
+    pub instance: Arc<Instance>,
     /// transport codec type.
     pub transport_codec: Codec,
     /// Settings that control the behavior of the underlying client.
@@ -29,7 +30,7 @@ pub struct RpcConfig {
 
 impl RpcConfig {
     /// Returns a default RpcConfig.
-    pub fn new(instance: Instance) -> Self {
+    pub fn new(instance: Arc<Instance>) -> Self {
         Self {
             instance,
             transport_codec: Default::default(),
@@ -64,15 +65,41 @@ impl RpcConfig {
     }
 }
 
-#[derive(Clone)]
 /// RPC channel which is client stub
 pub struct RpcChannel<S: Serve> {
-    inner: Arc<InnerRpcChannel<S>>,
+    inner: Arc<InnerRpcChannel<S::Req, S::Resp>>,
 }
 
-struct InnerRpcChannel<S: Serve> {
+impl<S: Serve> Clone for RpcChannel<S> {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
+struct InnerRpcChannel<Req, Resp> {
     config: RpcConfig,
-    channel: RwLock<Option<Channel<S::Req, S::Resp>>>,
+    channel: RwLock<Option<Channel<Req, Resp>>>,
+}
+
+impl<S> Debug for RpcChannel<S>
+where
+    S: Serve,
+    S::Req: Debug,
+    S::Resp: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RpcChannel").field("inner", &self.inner).finish()
+    }
+}
+
+impl<Req, Resp> Debug for InnerRpcChannel<Req, Resp>
+where
+    Req: Debug,
+    Resp: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InnerRpcChannel").field("config", &self.config).field("channel", &self.channel).finish()
+    }
 }
 
 impl<S: Serve> crate::client::stub::Stub for RpcChannel<S> {
@@ -92,9 +119,9 @@ impl<S: Serve> crate::client::stub::Stub for RpcChannel<S> {
     }
 }
 
-impl<S: Serve> RpcChannel<S>
+impl<S> RpcChannel<S>
 where
-    S: Serve + Clone,
+    S: Serve,
     S::Req: crate::serde::Serialize + Send + 'static,
     S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
 {
@@ -144,5 +171,12 @@ where
         let channel = Self::new_channel(self.inner.config.transport_codec.clone(), self.inner.config.core_config.clone(), &self.inner.config.instance.address).await?;
         self.inner.channel.write().await.replace(channel);
         Ok(())
+    }
+}
+
+impl<S: Serve> RpcChannel<S> {
+    /// Returns config
+    pub fn config(&self) -> &RpcConfig {
+        &self.inner.config
     }
 }

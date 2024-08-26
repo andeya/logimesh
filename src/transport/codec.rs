@@ -8,7 +8,7 @@
 pub use ::tarpc::tokio_serde::formats::*;
 
 /// Transport serde codec
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Codec {
     /// Bincode codec using [bincode](https://docs.rs/bincode) crate.
     Bincode,

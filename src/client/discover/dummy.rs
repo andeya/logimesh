@@ -26,7 +26,7 @@ impl Discover for DummyDiscover {
         async move { Ok(vec![]) }
     }
 
-    fn watch(&self, _: Option<&[FastStr]>) -> Option<Receiver<Change<Instance>>> {
+    fn watch(&self, _: Option<&[FastStr]>) -> Option<Receiver<Change<Arc<Instance>>>> {
         None
     }
 }

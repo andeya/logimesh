@@ -52,7 +52,7 @@ impl Discover for FixedDiscover {
         async move { Ok(self.instances.clone()) }
     }
 
-    fn watch(&self, _keys: Option<&[FastStr]>) -> Option<Receiver<Change<Instance>>> {
+    fn watch(&self, _keys: Option<&[FastStr]>) -> Option<Receiver<Change<Arc<Instance>>>> {
         None
     }
 }
