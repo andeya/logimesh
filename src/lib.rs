@@ -12,28 +12,14 @@
 
 pub use logimesh_macro::{component, derive_serde};
 pub mod client;
-pub mod endpoint;
+pub mod component;
+pub mod context;
 pub mod net;
-/// re-public `tarpc` crate something.
-pub use crate::tarpc::*;
-
-mod tarpc {
-    #[doc(hidden)]
-    pub use ::tarpc::serde;
-
-    pub use ::tarpc::{tokio_serde, tokio_util};
-
-    #[cfg_attr(docsrs, doc())]
-    pub use ::tarpc::serde_transport;
-
-    pub use ::tarpc::trace;
-
-    pub use ::tarpc::{context, server, transport};
-
-    pub use ::tarpc::Transport;
-
-    pub use ::tarpc::{ChannelError, ClientMessage, Request, RequestName, Response, ServerError};
-}
+pub mod server;
+pub mod transport;
+pub use ::tarpc::{serde, tokio_serde, tokio_util, ChannelError, ClientMessage, Request, RequestName, Response, ServerError};
+pub use transport::Transport;
+pub mod trace;
 
 #[allow(unreachable_pub)]
 mod sealed {

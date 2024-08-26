@@ -6,7 +6,7 @@
 // https://opensource.org/licenses/MIT.
 
 use clap::Parser;
-use logimesh::client::stub::LRConfig;
+use logimesh::client::stub::Config;
 use logimesh::client::stub::TransportCodec::Json;
 use logimesh::context;
 use logimesh::discover::service_lookup_from_addresses;
@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
     init_tracing("Tarpc Example Client")?;
 
     let client = CompHello
-        .logimesh_client(LRConfig::new("p.s.m".into(), service_lookup_from_addresses(vec![flags.server_addr.to_string()])).with_transport_codec(Json))
+        .logimesh_client(Config::new("p.s.m".into(), service_lookup_from_addresses(vec![flags.server_addr.to_string()])).with_transport_codec(Json))
         .await?;
 
     let hello = async move {

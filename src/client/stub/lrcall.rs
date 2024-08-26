@@ -3,214 +3,138 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
-//! A client stbu that supports both local calls and remote calls.
-#![allow(dead_code)]
+//! Local and remote Cclient.
 
-use std::cell::{Cell, RefCell};
-use std::sync::Arc;
+use crate::client::balance::LoadBalance;
+use crate::client::channel::Codec;
+use crate::client::discover::{Change, Discover, Instance};
+use crate::client::stub::Stub;
+use crate::client::{CoreConfig, RpcError};
+use crate::component::Component;
+use crate::server::Serve;
+use crate::BoxError;
+use std::hash::Hash;
+use thiserror::Error;
 
-use crate::client::stub::config::TransportCodec;
-use crate::client::stub::{formats, LRConfig, Stub};
-use crate::client::{Channel, RpcError};
-use crate::discover::{CallType, ServiceInfo};
-use crate::serde_transport::tcp;
-use crate::{context, discover, server};
-
-/// Create a builder for a client stub that supports both local and remote calls.
-pub struct NewLRCall<Serve, ServiceLookup, RetryFn>
+/// A full client stbu config.
+#[non_exhaustive]
+pub struct Builder<S, D, LB, RF>
 where
-    Serve: server::Serve,
+    S: Serve,
+    D: Discover,
+    LB: LoadBalance<D::Key, S>,
+    RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
-    lrcall: LRCall<Serve, ServiceLookup, RetryFn>,
+    /// The implementer of the local service.
+    pub(crate) component: Component<S, D::Endpoint>,
+    /// discover instance.
+    pub(crate) discover: D,
+    /// load balance instance.
+    pub(crate) load_balance: LB,
+    /// transport codec type.
+    pub(crate) transport_codec: Codec,
+    /// Settings that control the behavior of the underlying client.
+    pub(crate) core_config: CoreConfig,
+    /// A callback function for judging whether to re-initiate the request.
+    pub(crate) retry_fn: Option<RF>,
 }
 
-impl<Serve, ServiceLookup, RetryFn> NewLRCall<Serve, ServiceLookup, RetryFn>
+impl<S, D, LB, RF> Builder<S, D, LB, RF>
 where
-    Serve: server::Serve + Clone,
-    Serve::Req: crate::serde::Serialize + Send + 'static,
-    Serve::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
-    ServiceLookup: discover::ServiceLookup,
-    RetryFn: Fn(&Result<Serve::Resp, RpcError>, u32) -> bool,
+    S: Serve,
+    D: Discover,
+    LB: LoadBalance<D::Key, S>,
+    RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
-    /// Return a new client stbu that supports both local calls and remote calls.
-    pub fn new(serve: Serve, config: LRConfig<ServiceLookup>, retry_fn: RetryFn) -> Self {
-        let mut stub_config = tarpc::client::Config::default();
-        stub_config.max_in_flight_requests = config.max_in_flight_requests;
-        stub_config.pending_request_buffer = config.pending_request_buffer;
+    /// Create a LRCall builder.
+    pub fn new(component: Component<S, D::Endpoint>, discover: D, load_balance: LB) -> Self {
         Self {
-            lrcall: LRCall {
-                serve,
-                config,
-                stub_config,
-                retry_fn,
-                call_type: Cell::new(CallType::Local),
-                rpc_channels: RefCell::new(vec![]),
-                warm_up_error: None,
-            },
+            component,
+            discover,
+            load_balance,
+            transport_codec: Default::default(),
+            core_config: Default::default(),
+            retry_fn: None,
         }
     }
-
-    /// Spawn a client stbu that supports both local calls and remote calls.
-    pub async fn spawn(self) -> Result<LRCall<Serve, ServiceLookup, RetryFn>, RpcError> {
-        self.lrcall.warm_up().await
+    /// Set transport serde codec
+    pub fn with_transport_codec(mut self, transport_codec: Codec) -> Self {
+        self.transport_codec = transport_codec;
+        self
+    }
+    /// The number of requests that can be in flight at once.
+    /// `max_in_flight_requests` controls the size of the map used by the client
+    /// for storing pending requests.
+    /// Default is 1000.
+    pub fn with_max_in_flight_requests(mut self, max_in_flight_requests: usize) -> Self {
+        self.core_config.max_in_flight_requests = max_in_flight_requests;
+        self
+    }
+    /// The number of requests that can be buffered client-side before being sent.
+    /// `pending_requests_buffer` controls the size of the channel clients use
+    /// to communicate with the request dispatch task.
+    /// Default is 100.
+    pub fn with_pending_request_buffer(mut self, pending_request_buffer: usize) -> Self {
+        self.core_config.pending_request_buffer = pending_request_buffer;
+        self
+    }
+    /// Set a callback function for judging whether to re-initiate the request.
+    pub fn with_enable_retry(mut self, retry_fn: RF) -> Self {
+        self.retry_fn = Some(retry_fn);
+        self
+    }
+    /// Build a local and remote client.
+    pub fn build(self) -> LRCall<S, D, LB, RF> {
+        LRCall { config: self }
     }
 }
 
-/// A client stbu that supports both local calls and remote calls.
-pub struct LRCall<Serve, ServiceLookup, RetryFn>
-where
-    Serve: server::Serve,
-{
-    config: LRConfig<ServiceLookup>,
-    stub_config: tarpc::client::Config,
-    serve: Serve,
-    retry_fn: RetryFn,
-    call_type: Cell<CallType>,
-    rpc_channels: RefCell<Vec<ChannelWithInfo<Serve>>>,
-    warm_up_error: Option<anyhow::Error>,
+/// load bnalance error
+#[derive(Error, Debug)]
+pub enum LoadBalanceError {
+    /// retry error
+    #[error("load balance retry reaches end")]
+    Retry,
+    /// discover error
+    #[error("load balance discovery error: {0:?}")]
+    Discover(#[from] BoxError),
 }
 
-impl<Serve, ServiceLookup, RetryFn> LRCall<Serve, ServiceLookup, RetryFn>
+/// A local and remote client.
+pub struct LRCall<S, D, LB, RF>
 where
-    Serve: server::Serve + Clone,
-    Serve::Req: crate::serde::Serialize + Send + 'static,
-    Serve::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
-    ServiceLookup: discover::ServiceLookup,
-    RetryFn: Fn(&Result<Serve::Resp, RpcError>, u32) -> bool,
+    S: Serve,
+    D: Discover,
+    LB: LoadBalance<D::Key, S>,
+    RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
-    /// Warm up client stubs.
+    config: Builder<S, D, LB, RF>,
+}
+
+impl<S, D, LB, RF> LRCall<S, D, LB, RF>
+where
+    S: Serve,
+    D: Discover,
+    LB: LoadBalance<D::Key, S>,
+    RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
+{
     async fn warm_up(self) -> Result<Self, RpcError> {
-        self.init_lb_stub().await?;
-        Ok(self)
-    }
-    fn lookup_service(&self) -> anyhow::Result<Arc<ServiceInfo>> {
-        self.config.service_lookup.lookup_service(self.config.service_name.as_str())
-    }
-    async fn init_lb_stub(&self) -> Result<(), RpcError> {
-        // TODO
-        let service_info = self.lookup_service();
-        match service_info {
-            Ok(service_info) => *self.rpc_channels.borrow_mut() = self.new_channels_with_info(service_info).await?,
-            Err(e) => {
-                // TODO
-                println!("{:?}", e)
-            },
-        }
-        Ok(())
-    }
-    async fn new_channels_with_info(&self, service_info: Arc<ServiceInfo>) -> Result<Vec<ChannelWithInfo<Serve>>, RpcError> {
-        let mut stub_list = vec![];
-        match service_info.call_type {
-            discover::CallType::Local => {},
-            discover::CallType::Remote => {
-                for address in service_info.addresses.clone() {
-                    match ChannelWithInfo::new(address, self.config.transport_codec.clone(), self.stub_config.clone()).await {
-                        core::result::Result::Ok(channel) => {
-                            stub_list.push(channel);
-                        },
-                        Err(e) => {
-                            // TODO
-                            println!("{:?}", e)
-                        },
-                    }
-                }
-            },
-        }
-        self.call_type.set(service_info.call_type);
-        Ok(stub_list)
+        todo!()
     }
 }
 
-impl<Serve, ServiceLookup, RetryFn> Stub for LRCall<Serve, ServiceLookup, RetryFn>
+impl<S, D, LB, RF> Stub for LRCall<S, D, LB, RF>
 where
-    Serve: server::Serve + Clone,
-    ServiceLookup: discover::ServiceLookup,
-    RetryFn: Fn(&Result<Serve::Resp, RpcError>, u32) -> bool,
+    S: Serve,
+    D: Discover,
+    LB: LoadBalance<D::Key, S>,
+    RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
-    type Req = Serve::Req;
-    type Resp = Serve::Resp;
+    type Req = S::Req;
 
-    async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Self::Resp, RpcError> {
-        match self.call_type.get() {
-            CallType::Local => self.serve.call(ctx, request).await,
-            CallType::Remote => match self.rpc_channels.borrow().get(0) {
-                Some(chan) => chan.call(ctx, request).await,
-                None => Err(RpcError::Shutdown),
-            },
-        }
-    }
-}
+    type Resp = S::Resp;
 
-struct ChannelWithInfo<Serve: server::Serve> {
-    address: String,
-    transport_codec: TransportCodec,
-    stub_config: tarpc::client::Config,
-    channel: Channel<Serve::Req, Serve::Resp>,
-    is_shutdown: Cell<bool>,
-}
-
-impl<Serve: server::Serve> crate::client::stub::Stub for ChannelWithInfo<Serve> {
-    type Req = Serve::Req;
-    type Resp = Serve::Resp;
-
-    async fn call(&self, ctx: context::Context, request: Self::Req) -> Result<Self::Resp, RpcError> {
-        let res = self.channel.call(ctx, request).await;
-        if let Err(RpcError::Shutdown) = res {
-            self.is_shutdown.set(true);
-        }
-        res
-    }
-}
-
-impl<Serve: server::Serve> ChannelWithInfo<Serve>
-where
-    Serve: server::Serve + Clone,
-    Serve::Req: crate::serde::Serialize + Send + 'static,
-    Serve::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
-{
-    async fn new(address: String, transport_codec: TransportCodec, stub_config: tarpc::client::Config) -> Result<Self, anyhow::Error> {
-        let channe = Self::new_channel(transport_codec.clone(), stub_config.clone(), address.as_str()).await?;
-        Ok(Self {
-            address,
-            transport_codec,
-            stub_config,
-            channel: channe,
-            is_shutdown: Cell::new(false),
-        })
-    }
-    async fn new_channel(transport_codec: TransportCodec, stub_config: tarpc::client::Config, address: &str) -> Result<Channel<Serve::Req, Serve::Resp>, anyhow::Error> {
-        match transport_codec {
-            TransportCodec::Bincode => {
-                // Bincode codec using [bincode](https://docs.rs/bincode) crate.
-                let mut conn = tcp::connect(address, formats::Bincode::default);
-                conn.config_mut().max_frame_length(usize::MAX);
-                Ok(tarpc::client::new(stub_config, conn.await?).spawn())
-            },
-            TransportCodec::Json => {
-                // JSON codec using [serde_json](https://docs.rs/serde_json) crate.
-                let mut conn = tcp::connect(address, formats::Json::default);
-                conn.config_mut().max_frame_length(usize::MAX);
-                Ok(tarpc::client::new(stub_config, conn.await?).spawn())
-            },
-            #[cfg(feature = "serde-transport-messagepack")]
-            MessagePack => {
-                /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
-                let mut conn = tcp::connect(address, formats::MessagePack::default);
-                conn.config_mut().max_frame_length(usize::MAX);
-                Ok(tarpc::client::new(stub_config, conn.await?).spawn())
-            },
-            #[cfg(feature = "serde-transport-cbor")]
-            Cbor => {
-                /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
-                let mut conn = tcp::connect(address, formats::Cbor::default);
-                conn.config_mut().max_frame_length(usize::MAX);
-                Ok(tarpc::client::new(stub_config, conn.await?).spawn())
-            },
-        }
-    }
-    async fn reconnent(&mut self) -> Result<(), anyhow::Error> {
-        self.channel = Self::new_channel(self.transport_codec.clone(), self.stub_config.clone(), self.address.as_str()).await?;
-        self.is_shutdown.set(false);
-        Ok(())
+    async fn call(&self, ctx: tarpc::context::Context, request: Self::Req) -> Result<Self::Resp, RpcError> {
+        todo!()
     }
 }

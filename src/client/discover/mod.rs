@@ -7,7 +7,8 @@
 //!
 //! Client Stub Information discovery
 use crate::net::address::Address;
-use crate::{endpoint, BoxError};
+use crate::{component, BoxError};
+use async_broadcast::Receiver;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -15,47 +16,48 @@ use std::hash::Hash;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use async_broadcast::Receiver;
-
 /// [`Instance`] contains information of an instance from the target service.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Instance {
+    /// service address
     pub address: Address,
+    /// service weight
     pub weight: u32,
+    /// service tags extension
     pub tags: HashMap<Cow<'static, str>, Cow<'static, str>>,
 }
 
 /// [`Discover`] is the most basic trait for Discover.
 pub trait Discover: Send + Sync + 'static {
     /// A service information for discovery
-    type Endpoint: endpoint::Endpoint;
+    type Endpoint: component::Endpoint;
     /// `Key` identifies the endpoint, such as the cluster name.
     /// NOTE: Be sure to use this default type and do not set other types.  
-    type Key = <Self::Endpoint as endpoint::Endpoint>::Key;
+    type Key: Hash + PartialEq + Eq + Send + Sync + Clone + 'static = <Self::Endpoint as component::Endpoint>::Key;
     /// `discover` allows to request an endpoint and return a discover future.
     async fn discover<'s>(&'s self, endpoint: &'s Self::Endpoint) -> Result<Vec<Arc<Instance>>, BoxError>;
     /// `watch` should return a [`async_broadcast::Receiver`] which can be used to subscribe
     /// [`Change`].
-    fn watch(&self, keys: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key>>>;
+    fn watch(&self, keys: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key, Instance>>>;
 }
 
 /// Change indicates the change of the service discover.
 #[derive(Debug, Clone)]
-pub struct Change<K> {
+pub struct Change<Key, Item> {
     /// `key` should be the same as the output of `Endpoint::Key`,
     /// which is often used by cache.
-    pub key: K,
+    pub key: Key,
     /// Use local or remote, and specific change information
-    pub change: LRChange,
+    pub change: LRChange<Item>,
 }
 
 /// Use local or remote, and specific change information
 #[derive(Debug, Clone)]
-pub enum LRChange {
+pub enum LRChange<Item> {
     /// Use local procedure call.
     Lpc,
     /// Use remote procedure call, and carry the change details.
-    Rpc(RpcChange),
+    Rpc(RpcChange<Item>),
 }
 
 /// Change indicates the change of the service discover.
@@ -67,11 +69,15 @@ pub enum LRChange {
 /// Since the loadbalancer may rely on caching the result of discover to improve performance,
 /// the discover implementation should dispatch an event when result changes.
 #[derive(Debug, Clone)]
-pub struct RpcChange {
-    pub all: Vec<Arc<Instance>>,
-    pub added: Vec<Arc<Instance>>,
-    pub updated: Vec<Arc<Instance>>,
-    pub removed: Vec<Arc<Instance>>,
+pub struct RpcChange<Item> {
+    /// All service instances list
+    pub all: Vec<Arc<Item>>,
+    /// The list of newly added services
+    pub added: Vec<Arc<Item>>,
+    /// The list of newly updated services
+    pub updated: Vec<Arc<Item>>,
+    /// The list of newly removed services
+    pub removed: Vec<Arc<Item>>,
 }
 
 /// [`diff_address`] provides a naive implementation that compares prev and next only by the
@@ -83,7 +89,7 @@ pub struct RpcChange {
 /// the event to loadbalancer.
 ///
 /// If users need to compare the instances by also weight or tags, they should not use this.
-pub fn diff_address<K>(prev: Vec<Arc<Instance>>, next: Vec<Arc<Instance>>) -> (RpcChange, bool)
+pub fn diff_address<K>(prev: Vec<Arc<Instance>>, next: Vec<Arc<Instance>>) -> (RpcChange<Instance>, bool)
 where
     K: Hash + PartialEq + Eq + Send + Sync + 'static,
 {
@@ -153,7 +159,7 @@ impl Discover for StaticDiscover {
         Ok(self.instances.clone())
     }
 
-    fn watch(&self, _keys: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key>>> {
+    fn watch(&self, _keys: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key, Instance>>> {
         None
     }
 }
@@ -170,7 +176,7 @@ impl Discover for DummyDiscover {
         Ok(vec![])
     }
 
-    fn watch(&self, _: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key>>> {
+    fn watch(&self, _: Option<&[Self::Key]>) -> Option<Receiver<Change<Self::Key, Instance>>> {
         None
     }
 }

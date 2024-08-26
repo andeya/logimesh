@@ -3,7 +3,8 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
-//! net tool
-pub mod address;
-mod probe;
-pub use address::Address;
+//! A `Transport` which implements `AsyncRead` and `AsyncWrite`.
+
+pub mod codec;
+pub use ::tarpc::serde_transport::tcp;
+pub use ::tarpc::Transport;

@@ -22,7 +22,9 @@ use super::probe;
 /// Unified address
 #[derive(Clone, Debug)]
 pub enum Address {
+    /// IP address
     Ip(SocketAddr),
+    /// Unix address
     #[cfg(target_family = "unix")]
     Unix(StdUnixSocketAddr),
 }
@@ -82,6 +84,7 @@ impl Hash for Address {
 }
 
 impl Address {
+    /// Returns the favor address
     pub fn favor_dual_stack(self) -> Self {
         match self {
             Address::Ip(addr) => {
