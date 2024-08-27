@@ -59,6 +59,7 @@ impl RpcConfig {
         self
     }
     /// Set the underlying client config.
+    #[allow(dead_code)]
     pub(crate) fn with_core_config(mut self, core_config: CoreConfig) -> Self {
         self.core_config = core_config;
         self
@@ -78,7 +79,7 @@ impl<S: Serve> Clone for RpcChannel<S> {
 
 struct InnerRpcChannel<Req, Resp> {
     config: RpcConfig,
-    channel: RwLock<Option<Channel<Req, Resp>>>,
+    channel: Arc<RwLock<Option<Channel<Req, Resp>>>>,
 }
 
 impl<S> Debug for RpcChannel<S>
@@ -130,7 +131,7 @@ where
         Ok(Self {
             inner: Arc::new(InnerRpcChannel {
                 config,
-                channel: RwLock::new(Some(channe)),
+                channel: Arc::new(RwLock::new(Some(channe))),
             }),
         })
     }
@@ -171,6 +172,15 @@ where
         let channel = Self::new_channel(self.inner.config.transport_codec.clone(), self.inner.config.core_config.clone(), &self.inner.config.instance.address).await?;
         self.inner.channel.write().await.replace(channel);
         Ok(())
+    }
+
+    pub(crate) fn clone_update_instance(&self, instance: Arc<Instance>) -> Self {
+        let mut inner = InnerRpcChannel {
+            config: self.config().clone(),
+            channel: self.inner.channel.clone(),
+        };
+        inner.config.instance = instance;
+        Self { inner: Arc::new(inner) }
     }
 }
 

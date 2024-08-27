@@ -7,13 +7,12 @@
 //!
 //! Dummy discover.
 
-use super::{Change, Discover, Instance};
+use super::{Discover, Discovery, InstanceCluster};
 use crate::component::Endpoint;
 use crate::BoxError;
 use async_broadcast::Receiver;
 use faststr::FastStr;
 use std::future::Future;
-use std::sync::Arc;
 
 /// [`DummyDiscover`] always returns an empty list.
 ///
@@ -22,11 +21,16 @@ use std::sync::Arc;
 pub struct DummyDiscover;
 
 impl Discover for DummyDiscover {
-    fn discover<'s>(&'s self, _: &'s Endpoint) -> impl Future<Output = Result<Vec<Arc<Instance>>, BoxError>> + Send {
-        async move { Ok(vec![]) }
+    fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Discovery, BoxError>> + Send {
+        async move {
+            Ok(Discovery {
+                key: endpoint.key(),
+                instance_cluster: InstanceCluster::Rpc(vec![]),
+            })
+        }
     }
 
-    fn watch(&self, _: Option<&[FastStr]>) -> Option<Receiver<Change<Arc<Instance>>>> {
+    fn watch(&self, _: Option<&[FastStr]>) -> Option<Receiver<Discovery>> {
         None
     }
 }

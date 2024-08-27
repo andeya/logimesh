@@ -21,7 +21,7 @@ pub use ::tarpc::{serde, tokio_serde, tokio_util, ChannelError, ClientMessage, R
 pub use transport::Transport;
 pub mod trace;
 
-#[allow(unreachable_pub)]
+#[allow(unreachable_pub, dead_code)]
 mod sealed {
     pub trait Sealed<T> {}
 }

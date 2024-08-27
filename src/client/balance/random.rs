@@ -5,9 +5,8 @@
 // https://opensource.org/licenses/MIT.
 //! Random load balance implemention
 
-use super::LoadBalance;
+use super::{LoadBalance, RpcChange};
 use crate::client::channel::RpcChannel;
-use crate::client::discover::RpcChange;
 use crate::server::Serve;
 use core::cell::OnceCell;
 use rand::Rng;
@@ -112,7 +111,7 @@ where
             shared_channels: channels.clone(),
         }
     }
-    fn rebalance(&self, changes: Option<RpcChange<RpcChannel<S>>>) {
+    fn rebalance(&self, changes: Option<RpcChange<S>>) {
         let new_ptr = if let Some(changes) = changes {
             Box::into_raw(Box::new(Arc::new(WeightedChannels::from(changes.all))))
         } else {

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures::prelude::*;
 use logimesh::server::{self, Channel};
 use logimesh::{client, context};
@@ -58,9 +60,9 @@ impl<S> ::logimesh::server::Serve for ServeWorld<S>
 where
     S: World,
 {
-    type Req = WorldRequest;
+    type Req = Arc<WorldRequest>;
     type Resp = WorldResponse;
-    async fn serve(self, ctx: ::logimesh::context::Context, req: WorldRequest) -> ::core::result::Result<WorldResponse, ::logimesh::ServerError> {
+    async fn serve(self, ctx: ::logimesh::context::Context, req: Arc<WorldRequest>) -> ::core::result::Result<WorldResponse, ::logimesh::ServerError> {
         match req {
             WorldRequest::Hello { name } => ::core::result::Result::Ok(WorldResponse::Hello(World::hello(self.component, ctx, name).await)),
         }
