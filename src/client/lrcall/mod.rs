@@ -6,4 +6,6 @@
 //! Provides a Stub trait, implemented by types that can call remote services.
 
 pub use ::tarpc::client::stub::Stub;
-pub mod lrcall;
+pub use lrcall::*;
+
+mod lrcall;

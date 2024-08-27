@@ -6,8 +6,8 @@
 // https://opensource.org/licenses/MIT.
 
 use clap::Parser;
-use logimesh::client::stub::Config;
-use logimesh::client::stub::TransportCodec::Json;
+use logimesh::client::lrcall::Config;
+use logimesh::client::lrcall::TransportCodec::Json;
 use logimesh::context;
 use logimesh::discover::service_lookup_from_addresses;
 use service::{init_tracing, CompHello, World as _};

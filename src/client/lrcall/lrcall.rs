@@ -7,9 +7,9 @@
 
 use crate::client::balance::{LoadBalance, RpcChange};
 use crate::client::channel::{Codec, RpcChannel, RpcConfig};
+use crate::client::core::stub::Stub;
+use crate::client::core::{Config, RpcError};
 use crate::client::discover::{Discover, Discovery, Instance, InstanceCluster};
-use crate::client::stub::Stub;
-use crate::client::{CoreConfig, RpcError};
 use crate::component::Component;
 use crate::net::Address;
 use crate::server::Serve;
@@ -41,7 +41,7 @@ where
     /// transport codec type.
     pub(crate) transport_codec: Codec,
     /// Settings that control the behavior of the underlying client.
-    pub(crate) core_config: CoreConfig,
+    pub(crate) core_config: Config,
     /// A callback function for judging whether to re-initiate the request.
     pub(crate) retry_fn: Option<RF>,
 }
@@ -88,12 +88,12 @@ where
         self
     }
     /// Set a callback function for judging whether to re-initiate the request.
-    pub fn with_enable_retry(mut self, retry_fn: RF) -> Self {
+    pub fn with_retry_fn(mut self, retry_fn: RF) -> Self {
         self.retry_fn = Some(retry_fn);
         self
     }
-    /// Build a local and remote client.
-    pub async fn try_build(self) -> Result<LRCall<S, D, LB, RF>, BoxError> {
+    /// Spawn a local and remote client.
+    pub async fn try_spawn(self) -> Result<LRCall<S, D, LB, RF>, BoxError> {
         LRCall {
             config: self,
             notify: Arc::new(Notify::new()),
@@ -193,7 +193,7 @@ where
         Ok(self)
     }
 
-    async fn diff_and_dial(transport_codec: Codec, core_config: &CoreConfig, prev: &mut Vec<RpcChannel<S>>, next: Vec<Arc<Instance>>) -> Result<Option<RpcChange<S>>, BoxError>
+    async fn diff_and_dial(transport_codec: Codec, core_config: &Config, prev: &mut Vec<RpcChannel<S>>, next: Vec<Arc<Instance>>) -> Result<Option<RpcChange<S>>, BoxError>
     where
         S: Serve,
     {

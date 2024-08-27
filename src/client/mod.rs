@@ -8,7 +8,7 @@
 
 pub mod balance;
 pub mod discover;
-pub mod stub;
+pub mod lrcall;
 // pub use ::tarpc::client::{new, Channel, Config, NewClient, RequestDispatch, RpcError};
 pub mod channel;
-pub use ::tarpc::client::{Channel, Config as CoreConfig, RpcError};
+pub use ::tarpc::client as core;

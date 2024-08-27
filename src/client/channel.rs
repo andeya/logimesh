@@ -4,9 +4,9 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 //! RPC Channel
-use super::CoreConfig;
+
+use crate::client::core::{Channel, Config, RpcError};
 use crate::client::discover::Instance;
-use crate::client::{Channel, RpcError};
 use crate::context;
 use crate::net::Address;
 use crate::server::Serve;
@@ -25,7 +25,7 @@ pub struct RpcConfig {
     /// transport codec type.
     pub transport_codec: Codec,
     /// Settings that control the behavior of the underlying client.
-    pub core_config: CoreConfig,
+    pub core_config: Config,
 }
 
 impl RpcConfig {
@@ -34,7 +34,7 @@ impl RpcConfig {
         Self {
             instance,
             transport_codec: Default::default(),
-            core_config: CoreConfig::default(),
+            core_config: Config::default(),
         }
     }
     /// Set transport serde codec
@@ -60,7 +60,7 @@ impl RpcConfig {
     }
     /// Set the underlying client config.
     #[allow(dead_code)]
-    pub(crate) fn with_core_config(mut self, core_config: CoreConfig) -> Self {
+    pub(crate) fn with_core_config(mut self, core_config: Config) -> Self {
         self.core_config = core_config;
         self
     }
@@ -103,7 +103,7 @@ where
     }
 }
 
-impl<S: Serve> crate::client::stub::Stub for RpcChannel<S> {
+impl<S: Serve> crate::client::lrcall::Stub for RpcChannel<S> {
     type Req = S::Req;
     type Resp = S::Resp;
 

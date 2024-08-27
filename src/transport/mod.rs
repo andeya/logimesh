@@ -7,4 +7,5 @@
 
 pub mod codec;
 pub use ::tarpc::serde_transport::tcp;
+pub use ::tarpc::transport::channel;
 pub use ::tarpc::Transport;

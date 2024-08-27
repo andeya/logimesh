@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use futures::prelude::*;
 use logimesh::server::{self, Channel};
 use logimesh::{client, context};
@@ -12,28 +10,34 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone {
     #[doc = r" Returns a serving function to use with"]
     #[doc = r" [InFlightRequest::execute](::logimesh::server::InFlightRequest::execute)."]
     fn logimesh_serve(self) -> ServeWorld<Self> {
-        ServeWorld { component: self }
+        ServeWorld { service: self }
     }
     #[doc = r" Returns a client that supports both local calls and remote calls."]
-    async fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(
+    fn logimesh_lrcall<D, LB>(
         self,
-        config: ::logimesh::client::stub::Config<ServiceLookup>,
-    ) -> ::core::result::Result<
-        WorldClient<::logimesh::client::stub::LRCall<ServeWorld<Self>, ServiceLookup, fn(&::core::result::Result<WorldResponse, ::logimesh::client::RpcError>, u32) -> bool>>,
-        ::logimesh::client::RpcError,
-    > {
-        let stub: ::logimesh::client::stub::NewLRCall<ServeWorld<Self>, ServiceLookup, fn(&::core::result::Result<WorldResponse, ::logimesh::client::RpcError>, u32) -> bool> =
-            ::logimesh::client::stub::NewLRCall::new(ServeWorld { component: self }, config, Self::logimesh_should_retry);
-        match stub.spawn().await {
-            Ok(stub) => Ok(stub.into()),
-            Err(e) => Err(e),
-        }
+        endpoint: ::logimesh::component::Endpoint,
+        discover: D,
+        load_balance: LB,
+    ) -> ::logimesh::client::lrcall::Builder<ServeWorld<Self>, D, LB, fn(&::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, u32) -> bool>
+    where
+        D: ::logimesh::client::discover::Discover,
+        LB: ::logimesh::client::balance::LoadBalance<ServeWorld<Self>>,
+    {
+        ::logimesh::client::lrcall::Builder::new(
+            ::logimesh::component::Component {
+                serve: ServeWorld { service: self },
+                endpoint,
+            },
+            discover,
+            load_balance,
+        )
+        .with_retry_fn(Self::logimesh_should_retry)
     }
     #[doc = r" Judge whether a retry should be made according to the result returned by the call."]
     #[doc = r" When `::logimesh::client::stub::Config.enable_retry` is true, the method will be called."]
     #[doc = r" So you should implement your own version."]
     #[allow(unused_variables)]
-    fn logimesh_should_retry(result: &::core::result::Result<WorldResponse, ::logimesh::client::RpcError>, tried_times: u32) -> bool {
+    fn logimesh_should_retry(result: &::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, tried_times: u32) -> bool {
         false
     }
 }
@@ -46,25 +50,25 @@ impl World for UnimplWorld {
     }
 }
 #[doc = " The stub trait for component [`World`]."]
-pub trait WorldStub: ::logimesh::client::stub::Stub<Req = WorldRequest, Resp = WorldResponse> {}
-impl<S> WorldStub for S where S: ::logimesh::client::stub::Stub<Req = WorldRequest, Resp = WorldResponse> {}
+pub trait WorldStub: ::logimesh::client::lrcall::Stub<Req = WorldRequest, Resp = WorldResponse> {}
+impl<S> WorldStub for S where S: ::logimesh::client::lrcall::Stub<Req = WorldRequest, Resp = WorldResponse> {}
 #[doc = " The default WorldStub implementation."]
 #[doc = " Usage: `WorldChannel::spawn(config, transport)`"]
-pub type WorldChannel = ::logimesh::client::Channel<WorldRequest, WorldResponse>;
+pub type WorldChannel = ::logimesh::client::core::Channel<WorldRequest, WorldResponse>;
 #[doc = r" A serving function to use with [::logimesh::server::InFlightRequest::execute]."]
 #[derive(Clone)]
 pub struct ServeWorld<S> {
-    component: S,
+    service: S,
 }
 impl<S> ::logimesh::server::Serve for ServeWorld<S>
 where
     S: World,
 {
-    type Req = Arc<WorldRequest>;
+    type Req = WorldRequest;
     type Resp = WorldResponse;
-    async fn serve(self, ctx: ::logimesh::context::Context, req: Arc<WorldRequest>) -> ::core::result::Result<WorldResponse, ::logimesh::ServerError> {
+    async fn serve(self, ctx: ::logimesh::context::Context, req: WorldRequest) -> ::core::result::Result<WorldResponse, ::logimesh::ServerError> {
         match req {
-            WorldRequest::Hello { name } => ::core::result::Result::Ok(WorldResponse::Hello(World::hello(self.component, ctx, name).await)),
+            WorldRequest::Hello { name } => ::core::result::Result::Ok(WorldResponse::Hello(World::hello(self.service, ctx, name).await)),
         }
     }
 }
@@ -106,12 +110,12 @@ pub enum WorldResponse {
 pub struct WorldClient<Stub = WorldChannel>(Stub);
 impl WorldClient {
     #[doc = r" Returns a new client that sends requests over the given transport."]
-    pub fn new<T>(config: ::logimesh::client::Config, transport: T) -> ::logimesh::client::NewClient<Self, ::logimesh::client::RequestDispatch<WorldRequest, WorldResponse, T>>
+    pub fn new<T>(config: ::logimesh::client::core::Config, transport: T) -> ::logimesh::client::core::NewClient<Self, ::logimesh::client::core::RequestDispatch<WorldRequest, WorldResponse, T>>
     where
         T: ::logimesh::Transport<::logimesh::ClientMessage<WorldRequest>, ::logimesh::Response<WorldResponse>>,
     {
-        let new_client = ::logimesh::client::new(config, transport);
-        ::logimesh::client::NewClient {
+        let new_client = ::logimesh::client::core::new(config, transport);
+        ::logimesh::client::core::NewClient {
             client: WorldClient(new_client.client),
             dispatch: new_client.dispatch,
         }
@@ -119,7 +123,7 @@ impl WorldClient {
 }
 impl<Stub> ::core::convert::From<Stub> for WorldClient<Stub>
 where
-    Stub: ::logimesh::client::stub::Stub<Req = WorldRequest, Resp = WorldResponse>,
+    Stub: ::logimesh::client::lrcall::Stub<Req = WorldRequest, Resp = WorldResponse>,
 {
     #[doc = r" Returns a new client that sends requests over the given transport."]
     fn from(stub: Stub) -> Self {
@@ -128,10 +132,10 @@ where
 }
 impl<Stub> WorldClient<Stub>
 where
-    Stub: ::logimesh::client::stub::Stub<Req = WorldRequest, Resp = WorldResponse>,
+    Stub: ::logimesh::client::lrcall::Stub<Req = WorldRequest, Resp = WorldResponse>,
 {
     #[allow(unused)]
-    pub fn hello(&self, ctx: ::logimesh::context::Context, name: String) -> impl ::core::future::Future<Output = ::core::result::Result<String, ::logimesh::client::RpcError>> + '_ {
+    pub fn hello(&self, ctx: ::logimesh::context::Context, name: String) -> impl ::core::future::Future<Output = ::core::result::Result<String, ::logimesh::client::core::RpcError>> + '_ {
         let request = WorldRequest::Hello { name };
         let resp = self.0.call(ctx, request);
         async move {
@@ -168,7 +172,7 @@ async fn main() -> anyhow::Result<()> {
 
     // WorldClient is generated by the #[logimesh::component] attribute. It has a constructor `new`
     // that takes a config and any Transport as input.
-    let client = WorldClient::new(client::Config::default(), client_transport).spawn();
+    let client = WorldClient::new(client::core::Config::default(), client_transport).spawn();
 
     // The client has an RPC method for each RPC defined in the annotated trait. It takes the same
     // args as defined, with the addition of a Context, which is always the first arg. The Context
