@@ -16,6 +16,7 @@ use crate::server::Serve;
 use crate::BoxError;
 use futures_util::{select, FutureExt};
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Notify;
@@ -97,6 +98,7 @@ where
         LRCall {
             config: self,
             notify: Arc::new(Notify::new()),
+            use_rpc: Arc::new(AtomicBool::new(false)),
         }
         .warm_up()
         .await
@@ -126,6 +128,7 @@ where
 {
     config: Builder<S, D, LB, RF>,
     notify: Arc<Notify>,
+    use_rpc: Arc<AtomicBool>,
 }
 
 impl<S, D, LB, RF> LRCall<S, D, LB, RF>
@@ -141,9 +144,10 @@ where
         let discovery = self.config.discover.discover(&self.config.component.endpoint).await?;
         let mut channels: Vec<RpcChannel<S>> = Vec::new();
         match discovery.instance_cluster {
-            InstanceCluster::Lpc => {},
+            InstanceCluster::Lpc => self.use_rpc.store(false, Ordering::Release),
             InstanceCluster::Rpc(instances) => {
                 for instance in instances {
+                    self.use_rpc.store(true, Ordering::Release);
                     let channel = RpcChannel::new(RpcConfig {
                         instance,
                         transport_codec: self.config.transport_codec,
@@ -155,8 +159,7 @@ where
                             channels.push(channel);
                         },
                         Err(e) => {
-                            // TODO
-                            println!("{e:?}");
+                            warn!("[LOGIMESH] TCP connection establishment failed: {:?}", e)
                         },
                     }
                 }
@@ -169,6 +172,7 @@ where
             let transport_codec = self.config.transport_codec;
             let core_config = self.config.core_config.clone();
             let notify = self.notify.clone();
+            let use_rpc = self.use_rpc.clone();
             tokio::spawn(async move {
                 let mut prev = prev;
                 loop {
@@ -178,11 +182,17 @@ where
                         },
                         discovery = recv_change.recv().fuse() => match discovery {
                             Ok(Discovery{instance_cluster:InstanceCluster::Lpc,..}) => {
+                                use_rpc.store(false, Ordering::Release);
                                 prev.clear();
                             },
-                            Ok(Discovery{instance_cluster:InstanceCluster::Rpc(next),..}) => match Self::diff_and_dial(transport_codec, &core_config, &mut prev, next).await {
-                                Ok(changes) => load_balance.rebalance(changes),
-                                Err(err) => warn!("[LOGIMESH] TCP connection establishment failed: {:?}", err),
+                            Ok(Discovery{instance_cluster:InstanceCluster::Rpc(next),..}) => {
+                                use_rpc.store(true, Ordering::Release);
+                                match Self::diff_and_dial(transport_codec, &core_config, &mut prev, next).await {
+                                    Ok(changes) => {
+                                        load_balance.rebalance(changes);
+                                    },
+                                    Err(err) => warn!("[LOGIMESH] TCP connection establishment failed: {:?}", err),
+                                }
                             },
                             Err(err) => warn!("[LOGIMESH] discovering subscription error: {:?}", err),
                         },
@@ -273,7 +283,7 @@ where
 
 impl<S, D, LB, RF> Stub for LRCall<S, D, LB, RF>
 where
-    S: Serve + 'static,
+    S: Serve + Clone + 'static,
     S::Req: crate::serde::Serialize + Send + Clone + 'static,
     S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
     D: Discover,
@@ -284,28 +294,60 @@ where
 
     type Resp = S::Resp;
 
+    // TODO: Think about whether to fallback to LPC after RPC fails?
     async fn call(&self, ctx: crate::context::Context, request: Self::Req) -> Result<Self::Resp, RpcError> {
-        let mut picker = self.config.load_balance.get_picker();
-        for i in 1.. {
-            if let Some(channel) = picker.next() {
-                let result = channel.call(ctx, request.clone()).await;
-                if let Err(RpcError::Shutdown) = result {
-                    // TODO: Change to asynchronous processing
-                    match channel.reconnent().await {
-                        Ok(_) => trace!("[LOGIMESH] success to reconnect"),
-                        Err(e) => warn!("[LOGIMESH] failed to reconnect: {e:?}"),
-                    };
-                }
-                if let Some(retry_fn) = &self.config.retry_fn {
-                    if (retry_fn)(&result, i) {
-                        tracing::trace!("Retrying on attempt {i}");
-                        continue;
+        let use_rpc = self.use_rpc.load(Ordering::Acquire);
+        if let Some(retry_fn) = &self.config.retry_fn {
+            if use_rpc {
+                let mut picker = self.config.load_balance.get_picker();
+                for i in 1.. {
+                    if let Some(channel) = picker.next() {
+                        let result = channel.call(ctx, request.clone()).await;
+                        if let Err(RpcError::Shutdown) = result {
+                            // TODO: Change to asynchronous processing
+                            match channel.reconnent().await {
+                                Ok(_) => trace!("[LOGIMESH] success to reconnect"),
+                                Err(e) => warn!("[LOGIMESH] failed to reconnect: {e:?}"),
+                            };
+                        }
+                        if (retry_fn)(&result, i) {
+                            trace!("[LOGIMESH] Retrying on attempt {i}");
+                            continue;
+                        }
+                        return result;
                     }
                 }
-                return result;
+                unreachable!("[LOGIMESH] Wow, that was a lot of attempts!");
+            } else {
+                for i in 1.. {
+                    let result = self.config.component.serve.call(ctx, request.clone()).await;
+                    if (retry_fn)(&result, i) {
+                        trace!("[LOGIMESH] Retrying on attempt {i}");
+                        continue;
+                    }
+                    return result;
+                }
+                unreachable!("[LOGIMESH] Wow, that was a lot of attempts!");
+            }
+        } else {
+            if use_rpc {
+                let mut picker = self.config.load_balance.get_picker();
+                if let Some(channel) = picker.next() {
+                    let result = channel.call(ctx, request).await;
+                    if let Err(RpcError::Shutdown) = result {
+                        // TODO: Change to asynchronous processing
+                        match channel.reconnent().await {
+                            Ok(_) => trace!("[LOGIMESH] success to reconnect"),
+                            Err(e) => warn!("[LOGIMESH] failed to reconnect: {e:?}"),
+                        };
+                    }
+                    return result;
+                }
+                unreachable!("[LOGIMESH] Wow, that was a lot of attempts!");
+            } else {
+                return self.config.component.serve.call(ctx, request).await;
             }
         }
-        unreachable!("Wow, that was a lot of attempts!");
     }
 }
 
