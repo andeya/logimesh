@@ -24,6 +24,7 @@ pub struct Component<S> {
 
 /// Endpoint contains the information of the service.
 #[derive(Debug, Default)]
+#[non_exhaustive]
 pub struct Endpoint {
     /// `service_name` is the most important information, which is used by the service discovering.
     pub service_name: FastStr,
@@ -41,9 +42,9 @@ pub struct Endpoint {
 impl Endpoint {
     /// Creates a new endpoint info.
     #[inline]
-    pub fn new(service_name: FastStr) -> Self {
+    pub fn new(service_name: impl Into<FastStr>) -> Self {
         Self {
-            service_name,
+            service_name: service_name.into(),
             address: None,
             tags: FastStrMap::with_capacity(DEFAULT_MAP_CAPACITY),
             key_maker: None,

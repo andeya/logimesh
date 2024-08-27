@@ -6,13 +6,14 @@
 //! Local and remote Cclient.
 
 use crate::client::balance::{LoadBalance, RpcChange};
-use crate::client::channel::{Codec, RpcChannel, RpcConfig};
+use crate::client::channel::{RpcChannel, RpcConfig};
 use crate::client::core::stub::Stub;
 use crate::client::core::{Config, RpcError};
 use crate::client::discover::{Discover, Discovery, Instance, InstanceCluster};
 use crate::component::Component;
 use crate::net::Address;
 use crate::server::Serve;
+use crate::transport::codec::Codec;
 use crate::BoxError;
 use futures_util::{select, FutureExt};
 use std::collections::HashSet;
@@ -102,6 +103,10 @@ where
         }
         .warm_up()
         .await
+    }
+    /// Spawn a local and remote client.
+    pub async fn try_spawn_into<T: From<LRCall<S, D, LB, RF>>>(self) -> Result<T, BoxError> {
+        self.try_spawn().await.map(|s| T::from(s))
     }
 }
 

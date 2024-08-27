@@ -7,10 +7,10 @@
 
 use futures::prelude::*;
 use logimesh::context::Context;
-use logimesh::serde_transport as transport;
 use logimesh::server::{BaseChannel, Channel};
 use logimesh::tokio_serde::formats::Bincode;
 use logimesh::tokio_util::codec::length_delimited::LengthDelimitedCodec;
+use logimesh::transport;
 use tokio::net::{UnixListener, UnixStream};
 
 #[logimesh::component]

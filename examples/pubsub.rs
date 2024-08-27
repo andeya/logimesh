@@ -33,9 +33,9 @@ use anyhow::anyhow;
 use futures::channel::oneshot;
 use futures::future::{self, AbortHandle};
 use futures::prelude::*;
-use logimesh::serde_transport::tcp;
 use logimesh::server::{self, Channel};
 use logimesh::tokio_serde::formats::Json;
+use logimesh::transport::tcp;
 use logimesh::{client, context};
 use opentelemetry::trace::TracerProvider as _;
 use publisher::Publisher as _;
@@ -161,7 +161,7 @@ impl Publisher {
             while let Some(conn) = connecting_subscribers.next().await {
                 let subscriber_addr = conn.peer_addr().unwrap();
 
-                let logimesh::client::NewClient { client: subscriber, dispatch } = subscriber::SubscriberClient::new(client::Config::default(), conn);
+                let logimesh::client::core::NewClient { client: subscriber, dispatch } = subscriber::SubscriberClient::new(client::core::Config::default(), conn);
                 let (ready_tx, ready) = oneshot::channel();
                 self.clone().start_subscriber_gc(subscriber_addr, dispatch, ready);
 
@@ -275,7 +275,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _subscriber1 = Subscriber::connect(addrs.subscriptions, vec!["cool shorts".into(), "history".into()]).await?;
 
-    let publisher = publisher::PublisherClient::new(client::Config::default(), tcp::connect(addrs.publisher, Json::default).await?).spawn();
+    let publisher = publisher::PublisherClient::new(client::core::Config::default(), tcp::connect(addrs.publisher, Json::default).await?).spawn();
 
     publisher.publish(context::current(), "calculus".into(), "sqrt(2)".into()).await?;
 

@@ -6,15 +6,18 @@
 // https://opensource.org/licenses/MIT.
 
 use clap::Parser;
-use logimesh::client::lrcall::Config;
-use logimesh::client::lrcall::TransportCodec::Json;
-use logimesh::context;
-use logimesh::discover::service_lookup_from_addresses;
-use service::{init_tracing, CompHello, World as _};
+use logimesh::client::balance::RandomBalance;
+use logimesh::client::discover::FixedDiscover;
+use logimesh::client::RpcError;
+use logimesh::component::Endpoint;
+use logimesh::transport::codec::Codec;
+use logimesh::{context, IntoAnyResult};
+use service::{init_tracing, CompHello, ServeWorld, World as _, WorldClient, WorldResponse};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::Instrument;
+
 #[derive(Parser)]
 struct Flags {
     /// Sets the server address to connect to.
@@ -30,9 +33,14 @@ async fn main() -> anyhow::Result<()> {
     let flags = Flags::parse();
     init_tracing("Tarpc Example Client")?;
 
-    let client = CompHello
-        .logimesh_client(Config::new("p.s.m".into(), service_lookup_from_addresses(vec![flags.server_addr.to_string()])).with_transport_codec(Json))
-        .await?;
+    let client: WorldClient<
+        logimesh::client::lrcall::LRCall<ServeWorld<CompHello>, FixedDiscover, RandomBalance<ServeWorld<CompHello>>, for<'a> fn(&'a Result<WorldResponse, RpcError>, u32) -> bool>,
+    > = CompHello
+        .logimesh_lrcall(Endpoint::new("p.s.m"), FixedDiscover::from_address(vec![flags.server_addr.into()]), RandomBalance::new())
+        .with_transport_codec(Codec::Json)
+        .try_spawn_into()
+        .await
+        .any_result()?;
 
     let hello = async move {
         // Send the request twice, just to be safe! ;)

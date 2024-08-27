@@ -37,7 +37,7 @@ macro_rules! extend_errors {
     };
 }
 
-struct Component {
+struct Service {
     attrs: Vec<Attribute>,
     vis: Visibility,
     ident: Ident,
@@ -51,7 +51,7 @@ struct RpcMethod {
     output: ReturnType,
 }
 
-impl Parse for Component {
+impl Parse for Service {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let attrs = input.call(Attribute::parse_outer)?;
         let vis = input.parse()?;
@@ -327,12 +327,12 @@ fn collect_cfg_attrs(rpcs: &[RpcMethod]) -> Vec<Vec<&Attribute>> {
 pub fn component(attr: TokenStream, input: TokenStream) -> TokenStream {
     let derive_meta = parse_macro_input!(attr as DeriveMeta);
     let unit_type: &Type = &parse_quote!(());
-    let Component {
+    let Service {
         ref attrs,
         ref vis,
         ref ident,
         ref rpcs,
-    } = parse_macro_input!(input as Component);
+    } = parse_macro_input!(input as Service);
 
     let camel_case_fn_names: &Vec<_> = &rpcs.iter().map(|rpc| snake_to_camel(&rpc.ident.unraw().to_string())).collect();
     let args: &[&[PatType]] = &rpcs.iter().map(|rpc| &*rpc.args).collect::<Vec<_>>();
@@ -379,9 +379,9 @@ pub fn component(attr: TokenStream, input: TokenStream) -> TokenStream {
     let methods = rpcs.iter().map(|rpc| &rpc.ident).collect::<Vec<_>>();
     let request_names = methods.iter().map(|m| format!("{ident}.{m}")).collect::<Vec<_>>();
 
-    let code = ComponentGenerator {
-        component_ident: ident,
-        component_unimplemented_ident: &format_ident!("Unimpl{}", ident),
+    let code = ServiceGenerator {
+        service_ident: ident,
+        service_unimplemented_ident: &format_ident!("Unimpl{}", ident),
         client_stub_ident: &format_ident!("{}Stub", ident),
         channel_ident: &format_ident!("{}Channel", ident),
         server_ident: &format_ident!("Serve{}", ident),
@@ -415,11 +415,11 @@ pub fn component(attr: TokenStream, input: TokenStream) -> TokenStream {
     code.into()
 }
 
-// Things needed to generate the component items: trait, serve impl, request/response enums, and
+// Things needed to generate the service items: trait, serve impl, request/response enums, and
 // the client stub.
-struct ComponentGenerator<'a> {
-    component_ident: &'a Ident,
-    component_unimplemented_ident: &'a Ident,
+struct ServiceGenerator<'a> {
+    service_ident: &'a Ident,
+    service_unimplemented_ident: &'a Ident,
     client_stub_ident: &'a Ident,
     channel_ident: &'a Ident,
     server_ident: &'a Ident,
@@ -441,17 +441,16 @@ struct ComponentGenerator<'a> {
     warnings: &'a [TokenStream2],
 }
 
-impl<'a> ComponentGenerator<'a> {
-    fn trait_component(&self) -> TokenStream2 {
+impl<'a> ServiceGenerator<'a> {
+    fn trait_service(&self) -> TokenStream2 {
         let &Self {
-            client_ident,
-            component_unimplemented_ident,
+            service_unimplemented_ident,
             channel_ident,
             attrs,
             rpcs,
             vis,
             return_types,
-            component_ident,
+            service_ident,
             client_stub_ident,
             request_ident,
             response_ident,
@@ -476,65 +475,71 @@ impl<'a> ComponentGenerator<'a> {
             }
         });
 
-        let stub_doc = format!(r" The stub trait for component [`{component_ident}`].");
+        let stub_doc = format!(r" The stub trait for service [`{service_ident}`].");
         let channel_doc1 = format!(r" The default {client_stub_ident} implementation.");
         let channel_doc2 = format!(r" Usage: `{channel_ident}::spawn(config, transport)`");
         quote! {
             #( #attrs )*
             #[allow(async_fn_in_trait)]
-            #vis trait #component_ident: ::core::marker::Sized + ::core::clone::Clone {
+            #vis trait #service_ident: ::core::marker::Sized + ::core::clone::Clone {
                 #( #rpc_fns )*
 
                 /// Returns a serving function to use with
                 /// [InFlightRequest::execute](::logimesh::server::InFlightRequest::execute).
                 fn logimesh_serve(self) -> #server_ident<Self> {
-                    #server_ident { component: self }
+                    #server_ident { service: self }
                 }
 
-                /// Returns a client that supports both local calls and remote calls.
-                async fn logimesh_client<ServiceLookup: ::logimesh::discover::ServiceLookup>(
+                /// Return a builder of a client that supports local and remote calls.
+                fn logimesh_lrcall<D, LB>(
                     self,
-                    config: ::logimesh::client::stub::LRConfig<ServiceLookup>,
-                ) -> ::core::result::Result<
-                    #client_ident<::logimesh::client::stub::LRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool>>,
-                    ::logimesh::client::RpcError,
-                > {
-                    let stub: ::logimesh::client::stub::NewLRCall<#server_ident<Self>, ServiceLookup, fn(&::core::result::Result<#response_ident, ::logimesh::client::RpcError>, u32) -> bool> =
-                        ::logimesh::client::stub::NewLRCall::new(#server_ident { component: self }, config, Self::logimesh_should_retry);
-                    match stub.spawn().await {
-                        Ok(stub) => Ok(stub.into()),
-                        Err(e) => Err(e),
-                    }
+                    endpoint: ::logimesh::component::Endpoint,
+                    discover: D,
+                    load_balance: LB,
+                ) -> ::logimesh::client::lrcall::Builder<#server_ident<Self>, D, LB, fn(&::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, u32) -> bool>
+                    where
+                        D: ::logimesh::client::discover::Discover,
+                        LB: ::logimesh::client::balance::LoadBalance<#server_ident<Self>>,
+                {
+                    ::logimesh::client::lrcall::Builder::new(
+                        ::logimesh::component::Component {
+                            serve: #server_ident { service: self },
+                            endpoint,
+                        },
+                        discover,
+                        load_balance,
+                    )
+                    .with_retry_fn(Self::logimesh_should_retry)
                 }
 
                 /// Judge whether a retry should be made according to the result returned by the call.
                 /// When `::logimesh::client::stub::Config.enable_retry` is true, the method will be called.
                 /// So you should implement your own version.
                 #[allow(unused_variables)]
-                fn logimesh_should_retry(result: &::core::result::Result<#response_ident, ::logimesh::client::RpcError>, tried_times: u32) -> bool {
+                fn logimesh_should_retry(result: &::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, tried_times: u32) -> bool {
                     false
                 }
             }
 
             #[derive(Debug,Clone,Copy)]
-            #vis struct #component_unimplemented_ident;
+            #vis struct #service_unimplemented_ident;
 
-            impl #component_ident for #component_unimplemented_ident {
+            impl #service_ident for #service_unimplemented_ident {
                 #( #unimplemented_rpc_fns )*
             }
 
             #[doc = #stub_doc]
-            #vis trait #client_stub_ident: ::logimesh::client::stub::Stub<Req = #request_ident, Resp = #response_ident> {
+            #vis trait #client_stub_ident: ::logimesh::client::Stub<Req = #request_ident, Resp = #response_ident> {
             }
 
             impl<S> #client_stub_ident for S
-                where S: ::logimesh::client::stub::Stub<Req = #request_ident, Resp = #response_ident>
+                where S: ::logimesh::client::Stub<Req = #request_ident, Resp = #response_ident>
             {
             }
 
             #[doc = #channel_doc1]
             #[doc = #channel_doc2]
-            #vis type #channel_ident = ::logimesh::client::Channel<#request_ident, #response_ident>;
+            #vis type #channel_ident = ::logimesh::client::core::Channel<#request_ident, #response_ident>;
         }
     }
 
@@ -545,7 +550,7 @@ impl<'a> ComponentGenerator<'a> {
             /// A serving function to use with [::logimesh::server::InFlightRequest::execute].
             #[derive(Clone)]
             #vis struct #server_ident<S> {
-                component: S,
+                service: S,
             }
         }
     }
@@ -554,7 +559,7 @@ impl<'a> ComponentGenerator<'a> {
         let &Self {
             request_ident,
             server_ident,
-            component_ident,
+            service_ident,
             response_ident,
             camel_case_idents,
             arg_pats,
@@ -565,7 +570,7 @@ impl<'a> ComponentGenerator<'a> {
 
         quote! {
             impl<S> ::logimesh::server::Serve for #server_ident<S>
-                where S: #component_ident
+                where S: #service_ident
             {
                 type Req = #request_ident;
                 type Resp = #response_ident;
@@ -578,8 +583,8 @@ impl<'a> ComponentGenerator<'a> {
                             #( #method_cfgs )*
                             #request_ident::#camel_case_idents{ #( #arg_pats ),* } => {
                                 ::core::result::Result::Ok(#response_ident::#camel_case_idents(
-                                    #component_ident::#method_idents(
-                                        self.component, ctx, #( #arg_pats ),*
+                                    #service_ident::#method_idents(
+                                        self.service, ctx, #( #arg_pats ),*
                                     ).await
                                 ))
                             }
@@ -605,7 +610,7 @@ impl<'a> ComponentGenerator<'a> {
         quote! {
             /// The request sent over the wire from the client to the server.
             #[allow(missing_docs)]
-            #[derive(Debug)]
+            #[derive(Debug, Clone)]
             #derives
             #vis enum #request_ident {
                 #(
@@ -675,16 +680,16 @@ impl<'a> ComponentGenerator<'a> {
         let code = quote! {
             impl #client_ident {
                 /// Returns a new client that sends requests over the given transport.
-                #vis fn new<T>(config: ::logimesh::client::Config, transport: T)
-                    -> ::logimesh::client::NewClient<
+                #vis fn new<T>(config: ::logimesh::client::core::Config, transport: T)
+                    -> ::logimesh::client::core::NewClient<
                         Self,
-                        ::logimesh::client::RequestDispatch<#request_ident, #response_ident, T>
+                        ::logimesh::client::core::RequestDispatch<#request_ident, #response_ident, T>
                     >
                 where
                     T: ::logimesh::Transport<::logimesh::ClientMessage<#request_ident>, ::logimesh::Response<#response_ident>>
                 {
-                    let new_client = ::logimesh::client::new(config, transport);
-                    ::logimesh::client::NewClient {
+                    let new_client = ::logimesh::client::core::new(config, transport);
+                    ::logimesh::client::core::NewClient {
                         client: #client_ident(new_client.client),
                         dispatch: new_client.dispatch,
                     }
@@ -692,7 +697,7 @@ impl<'a> ComponentGenerator<'a> {
             }
 
             impl<Stub> ::core::convert::From<Stub> for #client_ident<Stub>
-                where Stub: ::logimesh::client::stub::Stub<
+                where Stub: ::logimesh::client::Stub<
                     Req = #request_ident,
                     Resp = #response_ident>
             {
@@ -722,7 +727,7 @@ impl<'a> ComponentGenerator<'a> {
 
         let code = quote! {
             impl<Stub> #client_ident<Stub>
-                where Stub: ::logimesh::client::stub::Stub<
+                where Stub: ::logimesh::client::Stub<
                     Req = #request_ident,
                     Resp = #response_ident>
             {
@@ -730,7 +735,7 @@ impl<'a> ComponentGenerator<'a> {
                     #[allow(unused)]
                     #( #method_attrs )*
                     #vis fn #method_idents(&self, ctx: ::logimesh::context::Context, #( #args ),*)
-                        -> impl ::core::future::Future<Output = ::core::result::Result<#return_types, ::logimesh::client::RpcError>> + '_ {
+                        -> impl ::core::future::Future<Output = ::core::result::Result<#return_types, ::logimesh::client::core::RpcError>> + '_ {
                         let request = #request_ident::#camel_case_idents { #( #arg_pats ),* };
                         let resp = self.0.call(ctx, request);
                         async move {
@@ -751,10 +756,10 @@ impl<'a> ComponentGenerator<'a> {
     }
 }
 
-impl<'a> ToTokens for ComponentGenerator<'a> {
+impl<'a> ToTokens for ServiceGenerator<'a> {
     fn to_tokens(&self, output: &mut TokenStream2) {
         output.extend(vec![
-            self.trait_component(),
+            self.trait_service(),
             self.struct_server(),
             self.impl_serve_for_server(),
             self.enum_request(),

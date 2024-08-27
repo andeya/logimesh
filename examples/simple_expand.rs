@@ -12,7 +12,7 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone {
     fn logimesh_serve(self) -> ServeWorld<Self> {
         ServeWorld { service: self }
     }
-    #[doc = r" Returns a client that supports both local calls and remote calls."]
+    #[doc = r" Return a builder of a client that supports local and remote calls."]
     fn logimesh_lrcall<D, LB>(
         self,
         endpoint: ::logimesh::component::Endpoint,
@@ -49,9 +49,9 @@ impl World for UnimplWorld {
         unimplemented!()
     }
 }
-#[doc = " The stub trait for component [`World`]."]
-pub trait WorldStub: ::logimesh::client::lrcall::Stub<Req = WorldRequest, Resp = WorldResponse> {}
-impl<S> WorldStub for S where S: ::logimesh::client::lrcall::Stub<Req = WorldRequest, Resp = WorldResponse> {}
+#[doc = " The stub trait for service [`World`]."]
+pub trait WorldStub: ::logimesh::client::Stub<Req = WorldRequest, Resp = WorldResponse> {}
+impl<S> WorldStub for S where S: ::logimesh::client::Stub<Req = WorldRequest, Resp = WorldResponse> {}
 #[doc = " The default WorldStub implementation."]
 #[doc = " Usage: `WorldChannel::spawn(config, transport)`"]
 pub type WorldChannel = ::logimesh::client::core::Channel<WorldRequest, WorldResponse>;
@@ -123,7 +123,7 @@ impl WorldClient {
 }
 impl<Stub> ::core::convert::From<Stub> for WorldClient<Stub>
 where
-    Stub: ::logimesh::client::lrcall::Stub<Req = WorldRequest, Resp = WorldResponse>,
+    Stub: ::logimesh::client::Stub<Req = WorldRequest, Resp = WorldResponse>,
 {
     #[doc = r" Returns a new client that sends requests over the given transport."]
     fn from(stub: Stub) -> Self {
@@ -132,7 +132,7 @@ where
 }
 impl<Stub> WorldClient<Stub>
 where
-    Stub: ::logimesh::client::lrcall::Stub<Req = WorldRequest, Resp = WorldResponse>,
+    Stub: ::logimesh::client::Stub<Req = WorldRequest, Resp = WorldResponse>,
 {
     #[allow(unused)]
     pub fn hello(&self, ctx: ::logimesh::context::Context, name: String) -> impl ::core::future::Future<Output = ::core::result::Result<String, ::logimesh::client::core::RpcError>> + '_ {
@@ -157,14 +157,17 @@ impl World for CompHello {
     async fn hello(self, _: context::Context, name: String) -> String {
         format!("Hello, {name}!")
     }
-}
-
-async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-    tokio::spawn(fut);
+    fn logimesh_should_retry(_result: &::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, _tried_times: u32) -> bool {
+        false
+    }
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
+        tokio::spawn(fut);
+    }
+
     let (client_transport, server_transport) = logimesh::transport::channel::unbounded();
 
     let server = server::BaseChannel::with_defaults(server_transport);

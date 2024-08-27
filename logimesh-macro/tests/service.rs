@@ -88,7 +88,7 @@ fn syntax() {
 
 #[test]
 fn custom_derives() {
-    #[logimesh::component(derive = [Clone, Hash])]
+    #[logimesh::component(derive = [Hash])]
     trait Foo {
         async fn foo();
     }

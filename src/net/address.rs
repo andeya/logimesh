@@ -8,11 +8,12 @@
 
 use std::fmt;
 use std::hash::Hash;
-use std::net::{Ipv6Addr, SocketAddr};
+use std::net::{AddrParseError, Ipv6Addr, SocketAddr};
 #[cfg(target_os = "linux")]
 use std::os::linux::net::SocketAddrExt;
 #[cfg(target_family = "unix")]
 use std::os::unix::net::SocketAddr as StdUnixSocketAddr;
+use std::str::FromStr;
 
 #[cfg(target_family = "unix")]
 use tokio::net::unix::SocketAddr as TokioUnixSocketAddr;
@@ -144,5 +145,17 @@ impl From<TokioUnixSocketAddr> for Address {
         // SAFETY: `std::mem::transmute` can ensure both struct has the same size, so there is no
         // need for checking it.
         Address::Unix(unsafe { std::mem::transmute::<tokio::net::unix::SocketAddr, std::os::unix::net::SocketAddr>(value) })
+    }
+}
+
+impl FromStr for Address {
+    type Err = AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let addr: Result<SocketAddr, AddrParseError> = s.parse();
+        match addr {
+            Ok(addr) => Ok(addr.into()),
+            Err(e) => Err(e),
+        }
     }
 }

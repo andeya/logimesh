@@ -7,8 +7,13 @@
 //! Provides a client that connects to a server and sends multiplexed requests.
 
 pub mod balance;
+pub mod channel;
 pub mod discover;
 pub mod lrcall;
-// pub use ::tarpc::client::{new, Channel, Config, NewClient, RequestDispatch, RpcError};
-pub mod channel;
-pub use ::tarpc::client as core;
+pub use core::stub::Stub;
+pub use core::RpcError;
+/// re-public tarpc some types.
+pub mod core {
+    // pub use ::tarpc::client::{new, Channel, Config, NewClient, RequestDispatch, RpcError};
+    pub use ::tarpc::client::*;
+}

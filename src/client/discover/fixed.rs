@@ -7,16 +7,15 @@
 //!
 //! Fixed instance list discover.
 
+use super::{Discover, Discovery, Instance, InstanceCluster};
 use crate::component::Endpoint;
 use crate::net::address::Address;
 use crate::BoxError;
 use async_broadcast::Receiver;
 use faststr::FastStr;
 use std::future::Future;
-use std::net::SocketAddr;
+use std::net::AddrParseError;
 use std::sync::Arc;
-
-use super::{Discover, Discovery, Instance, InstanceCluster};
 
 /// [`FixedDiscover`] is a simple implementation of [`Discover`] that returns a fixed list of instances.
 #[derive(Clone)]
@@ -29,15 +28,13 @@ impl FixedDiscover {
     pub fn new(instance_cluster: InstanceCluster) -> Self {
         Self { instance_cluster }
     }
-}
-
-impl From<Vec<SocketAddr>> for FixedDiscover {
-    fn from(addrs: Vec<SocketAddr>) -> Self {
-        let instances = addrs
+    /// Creates a new [`FixedDiscover`] from address.
+    pub fn from_address(address_list: Vec<Address>) -> Self {
+        let instances = address_list
             .into_iter()
-            .map(|addr| {
+            .map(|address| {
                 Arc::new(Instance {
-                    address: Address::Ip(addr),
+                    address: address,
                     weight: 1,
                     tags: Default::default(),
                 })
@@ -46,6 +43,14 @@ impl From<Vec<SocketAddr>> for FixedDiscover {
         Self {
             instance_cluster: InstanceCluster::Rpc(instances),
         }
+    }
+    /// Creates a new [`FixedDiscover`] from address.
+    pub fn from_address_str(address_list: Vec<impl AsRef<str>>) -> Result<Self, AddrParseError> {
+        let mut list = Vec::new();
+        for ele in address_list {
+            list.push(ele.as_ref().parse()?);
+        }
+        Ok(Self::from_address(list))
     }
 }
 

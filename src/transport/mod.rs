@@ -6,6 +6,6 @@
 //! A `Transport` which implements `AsyncRead` and `AsyncWrite`.
 
 pub mod codec;
-pub use ::tarpc::serde_transport::tcp;
+pub use ::tarpc::serde_transport::{new, tcp, unix};
 pub use ::tarpc::transport::channel;
 pub use ::tarpc::Transport;

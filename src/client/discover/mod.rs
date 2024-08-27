@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_fixed_discover() {
-        let discover = FixedDiscover::from(vec!["127.0.0.1:8000".parse().unwrap(), "127.0.0.2:9000".parse().unwrap()]);
+        let discover = FixedDiscover::from_address_str(vec!["127.0.0.1:8000", "127.0.0.2:9000"]).unwrap();
         let resp = futures::executor::block_on(async { discover.discover(&Endpoint::default()).await }).unwrap();
         let expected = InstanceCluster::Rpc(vec![
             Arc::new(Instance {

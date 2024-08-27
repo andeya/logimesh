@@ -5,12 +5,13 @@
 // https://opensource.org/licenses/MIT.
 //! RPC Channel
 
+use crate::client::core::stub::Stub;
 use crate::client::core::{Channel, Config, RpcError};
 use crate::client::discover::Instance;
 use crate::context;
 use crate::net::Address;
 use crate::server::Serve;
-pub use crate::transport::codec::*;
+use crate::transport::codec::*;
 use crate::transport::tcp;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -103,7 +104,7 @@ where
     }
 }
 
-impl<S: Serve> crate::client::lrcall::Stub for RpcChannel<S> {
+impl<S: Serve> Stub for RpcChannel<S> {
     type Req = S::Req;
     type Resp = S::Resp;
 

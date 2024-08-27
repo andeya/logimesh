@@ -14,12 +14,13 @@ use logimesh::server::incoming::{spawn_incoming, Incoming};
 use logimesh::server::request_hook::{self, BeforeRequestList};
 use logimesh::server::BaseChannel;
 use logimesh::tokio_serde::formats::Json;
-use logimesh::{context, serde_transport, ClientMessage, RequestName, Response, ServerError, Transport};
+use logimesh::{context, ClientMessage, RequestName, Response, ServerError, Transport};
 use opentelemetry::trace::TracerProvider as _;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tarpc::client::stub::{load_balance, retry};
+use tarpc::serde_transport;
 use tokio::net::TcpStream;
 use tracing_subscriber::prelude::*;
 
@@ -92,22 +93,24 @@ where
     Item: for<'de> serde::Deserialize<'de>,
     SinkItem: serde::Serialize,
 {
-    let listener = logimesh::serde_transport::tcp::listen("localhost:0", Json::default)
-        .await?
-        .filter_map(|r| future::ready(r.ok()))
-        .take(1);
+    let listener = logimesh::transport::tcp::listen("localhost:0", Json::default).await?.filter_map(|r| future::ready(r.ok())).take(1);
     let addr = listener.get_ref().get_ref().local_addr();
     Ok((listener, addr))
 }
 
 fn make_stub<Req, Resp, const N: usize>(
     backends: [impl Transport<ClientMessage<Arc<Req>>, Response<Resp>> + Send + Sync + 'static; N],
-) -> retry::Retry<impl Fn(&Result<Resp, RpcError>, u32) -> bool + Clone, load_balance::RoundRobin<client::Channel<Arc<Req>, Resp>>>
+) -> retry::Retry<impl Fn(&Result<Resp, RpcError>, u32) -> bool + Clone, load_balance::RoundRobin<client::core::Channel<Arc<Req>, Resp>>>
 where
     Req: RequestName + Send + Sync + 'static,
     Resp: Send + Sync + 'static,
 {
-    let stub = load_balance::RoundRobin::new(backends.into_iter().map(|transport| logimesh::client::new(client::Config::default(), transport).spawn()).collect());
+    let stub = load_balance::RoundRobin::new(
+        backends
+            .into_iter()
+            .map(|transport| logimesh::client::core::new(client::core::Config::default(), transport).spawn())
+            .collect(),
+    );
     retry::Retry::new(stub, |resp, attempts| {
         if let Err(e) = resp {
             tracing::warn!("Got an error: {e:?}");
@@ -141,18 +144,18 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(spawn_incoming(add_server.execute(server)));
 
     let add_client = add::AddClient::from(make_stub([
-        logimesh::serde_transport::tcp::connect(addr1, Json::default).await?,
-        logimesh::serde_transport::tcp::connect(addr2, Json::default).await?,
+        logimesh::transport::tcp::connect(addr1, Json::default).await?,
+        logimesh::transport::tcp::connect(addr2, Json::default).await?,
     ]));
 
-    let double_listener = logimesh::serde_transport::tcp::listen("localhost:0", Json::default).await?.filter_map(|r| future::ready(r.ok()));
+    let double_listener = logimesh::transport::tcp::listen("localhost:0", Json::default).await?.filter_map(|r| future::ready(r.ok()));
     let addr = double_listener.get_ref().local_addr();
     let double_server = double_listener.map(BaseChannel::with_defaults).take(1);
     let server = DoubleServer { add_client }.logimesh_serve();
     tokio::spawn(spawn_incoming(double_server.execute(server)));
 
-    let to_double_server = logimesh::serde_transport::tcp::connect(addr, Json::default).await?;
-    let double_client = double::DoubleClient::new(client::Config::default(), to_double_server).spawn();
+    let to_double_server = logimesh::transport::tcp::connect(addr, Json::default).await?;
+    let double_client = double::DoubleClient::new(client::core::Config::default(), to_double_server).spawn();
 
     let ctx = context::current();
     for _ in 1..=5 {

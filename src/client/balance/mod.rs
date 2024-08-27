@@ -6,7 +6,8 @@
 //!
 //! load balance for channel.
 
-pub mod random;
+pub use random::*;
+mod random;
 use crate::client::channel::RpcChannel;
 use crate::net::Address;
 use crate::server::Serve;
