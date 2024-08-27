@@ -97,7 +97,7 @@ resolver = "2"
 members = ["logimesh-macro", "logimesh-example"]
 
 [workspace.package]
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Andeya Lee <andeyalee@outlook.com>"]
 license = "MIT"
