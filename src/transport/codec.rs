@@ -5,7 +5,12 @@
 // https://opensource.org/licenses/MIT.
 //! A client stbu config.
 
+use std::cell::RefCell;
+use std::pin::Pin;
+use std::sync::Arc;
+
 pub use ::tarpc::tokio_serde::formats::*;
+use bytes::{Bytes, BytesMut};
 
 /// Transport serde codec
 #[derive(Debug, Clone, Copy)]
@@ -32,63 +37,124 @@ impl Default for Codec {
 #[derive(Debug)]
 pub enum CodecFn<Item, SinkItem> {
     /// Bincode codec using [bincode](https://docs.rs/bincode) crate.
-    Bincode(fn() -> Bincode<Item, SinkItem>),
+    Bincode(Arc<RefCell<Bincode<Item, SinkItem>>>),
     /// JSON codec using [serde_json](https://docs.rs/serde_json) crate.
-    Json(fn() -> Json<Item, SinkItem>),
+    Json(Arc<RefCell<Json<Item, SinkItem>>>),
     /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
     #[cfg(feature = "serde-transport-messagepack")]
-    MessagePack(MessagePack<Item, SinkItem>),
+    MessagePack(Arc<RefCell<MessagePack<Item, SinkItem>>>),
     /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
     #[cfg(feature = "serde-transport-cbor")]
-    Cbor(Cbor<Item, SinkItem>),
+    Cbor(Arc<RefCell<Cbor<Item, SinkItem>>>),
+}
+
+impl<Item, SinkItem> Clone for CodecFn<Item, SinkItem> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Bincode(arg0) => Self::Bincode(arg0.clone()),
+            Self::Json(arg0) => Self::Json(arg0.clone()),
+            #[cfg(feature = "serde-transport-messagepack")]
+            Self::MessagePack(arg0) => Self::MessagePack(arg0.clone()),
+            #[cfg(feature = "serde-transport-cbor")]
+            Self::Cbor(arg0) => Self::Cbor(arg0.clone()),
+        }
+    }
 }
 
 impl<Item, SinkItem> Default for CodecFn<Item, SinkItem> {
     fn default() -> Self {
-        CodecFn::Bincode(Bincode::default)
+        CodecFn::Bincode(Arc::new(RefCell::new(Bincode::default())))
     }
 }
 
 impl Codec {
     /// Returns the corresponding serde codec functions.
-    pub fn codec_fn<Item, SinkItem>(&self) -> CodecFn<Item, SinkItem> {
+    pub fn to_fn<Item, SinkItem>(&self) -> CodecFn<Item, SinkItem> {
         match self {
             Self::Bincode => {
                 // Bincode codec using [bincode](https://docs.rs/bincode) crate.
-                CodecFn::Bincode(Bincode::default)
+                CodecFn::Bincode(Arc::new(RefCell::new(Bincode::default())))
             },
             Self::Json => {
                 // JSON codec using [serde_json](https://docs.rs/serde_json) crate.
-                CodecFn::Json(Json::default)
+                CodecFn::Json(Arc::new(RefCell::new(Json::default())))
             },
             #[cfg(feature = "serde-transport-messagepack")]
             Self::MessagePack => {
                 /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
-                CodecFn::MessagePack(MessagePack::default)
+                CodecFn::MessagePack(Arc::new(RefCell::new(MessagePack::default())))
             },
             #[cfg(feature = "serde-transport-cbor")]
             Self::Cbor => {
                 /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
-                CodecFn::Cbor(Cbor::default)
+                CodecFn::Cbor(Arc::new(RefCell::new(Cbor::default())))
             },
         }
     }
 }
 
-// impl<Item, SinkItem> From<Codec> for CodecFn<Item, SinkItem> {
-//     fn from(value: Codec) -> Self {
-//         value.codec_fn()
-//     }
-// }
-// use serde::Deserialize;
-// use tarpc::tokio_serde::{Deserializer, Serializer};
-// impl<Item, SinkItem> FnOnce<()> for CodecFn<Item, SinkItem>
-// where
-//     Item: for<'de> Deserialize<'de>,
-// {
-//     type Output = impl Serializer<SinkItem> + Deserializer<Item>;
+impl<Item, SinkItem> From<Codec> for CodecFn<Item, SinkItem> {
+    fn from(value: Codec) -> Self {
+        value.to_fn()
+    }
+}
 
-//     extern "rust-call" fn call_once(self, args: ()) -> Self::Output {
-//         todo!()
-//     }
-// }
+use serde::{Deserialize, Serialize};
+use tarpc::tokio_serde::{Deserializer, Serializer};
+
+impl<Item, SinkItem> Deserializer<Item> for CodecFn<Item, SinkItem>
+where
+    for<'a> Item: Unpin + Deserialize<'a>,
+    SinkItem: Unpin,
+{
+    type Error = std::io::Error;
+
+    fn deserialize(self: Pin<&mut Self>, src: &BytesMut) -> Result<Item, Self::Error> {
+        match self.get_mut() {
+            CodecFn::Bincode(c) => Ok(Pin::new(&mut *c.borrow_mut()).deserialize(src)?),
+            CodecFn::Json(c) => Ok(Pin::new(&mut *c.borrow_mut()).deserialize(src)?),
+            #[cfg(feature = "serde-transport-messagepack")]
+            CodecFn::MessagePack(c) => Ok(Pin::new(&mut *c.borrow_mut()).deserialize(src)?),
+            #[cfg(feature = "serde-transport-cbor")]
+            CodecFn::Cbor(c) => Ok(Pin::new(&mut *c.borrow_mut()).deserialize(src)?),
+        }
+    }
+}
+
+impl<Item, SinkItem> Serializer<SinkItem> for CodecFn<Item, SinkItem>
+where
+    Item: Unpin,
+    SinkItem: Serialize + Unpin,
+{
+    type Error = std::io::Error;
+
+    fn serialize(self: Pin<&mut Self>, item: &SinkItem) -> Result<Bytes, Self::Error> {
+        match self.get_mut() {
+            CodecFn::Bincode(c) => Ok(Pin::new(&mut *c.borrow_mut()).serialize(item)?),
+            CodecFn::Json(c) => Ok(Pin::new(&mut *c.borrow_mut()).serialize(item)?),
+            #[cfg(feature = "serde-transport-messagepack")]
+            CodecFn::MessagePack(c) => Ok(Pin::new(&mut *c.borrow_mut()).serialize(item)?),
+            #[cfg(feature = "serde-transport-cbor")]
+            CodecFn::Cbor(c) => Ok(Pin::new(&mut *c.borrow_mut()).serialize(item)?),
+        }
+    }
+}
+
+impl<Item, SinkItem> FnOnce<()> for CodecFn<Item, SinkItem> {
+    type Output = Self;
+    extern "rust-call" fn call_once(self, _: ()) -> Self::Output {
+        self
+    }
+}
+
+impl<Item, SinkItem> FnMut<()> for CodecFn<Item, SinkItem> {
+    extern "rust-call" fn call_mut(&mut self, _: ()) -> Self::Output {
+        self.clone()
+    }
+}
+
+impl<Item, SinkItem> Fn<()> for CodecFn<Item, SinkItem> {
+    extern "rust-call" fn call(&self, _: ()) -> Self::Output {
+        self.clone()
+    }
+}

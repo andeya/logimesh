@@ -10,7 +10,6 @@ use futures::future;
 use futures::prelude::*;
 use logimesh::server::incoming::Incoming;
 use logimesh::server::{self, Channel};
-use logimesh::tokio_serde::formats::Json;
 use service::{init_tracing, CompHello, World};
 use std::net::{IpAddr, Ipv6Addr};
 
@@ -34,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
 
     // JSON transport is provided by the json_transport logimesh module. It makes it easy
     // to start up a serde-powered json serialization strategy over TCP.
-    let mut listener = logimesh::transport::tcp::listen(&server_addr, Json::default).await?;
+    let mut listener = logimesh::transport::tcp::listen(&server_addr, CompHello::TRANSPORT_CODEC.to_fn()).await?;
     tracing::info!("Listening on port {}", listener.local_addr().port());
     listener.config_mut().max_frame_length(usize::MAX);
     listener

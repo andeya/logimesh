@@ -50,6 +50,7 @@ faststr = { workspace = true }
 dashmap = { workspace = true }
 rand = { workspace = true }
 tracing = { workspace = true, features = ["attributes", "log"] }
+bytes = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
@@ -64,7 +65,7 @@ tokio = { workspace = true, features = [
 ] }
 assert_matches = { workspace = true }
 bincode = { workspace = true }
-bytes = { version = "1", features = ["serde"] }
+bytes = { workspace = true, features = ["serde"] }
 flate2 = { workspace = true }
 futures-test = { workspace = true }
 opentelemetry = { workspace = true, default-features = false }
@@ -96,7 +97,7 @@ resolver = "2"
 members = ["logimesh-macro", "logimesh-example"]
 
 [workspace.package]
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Andeya Lee <andeyalee@outlook.com>"]
 license = "MIT"

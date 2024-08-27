@@ -352,6 +352,10 @@ where
                             continue;
                         }
                         return result;
+                    } else {
+                        // When there is no connection, fallback to local call (LPC)
+                        warn!("[LOGIMESH] As there is no connection, fallback to local call.");
+                        return self.config.component.serve.call(ctx, request).await;
                     }
                 }
                 unreachable!("[LOGIMESH] Wow, that was a lot of attempts!");
@@ -379,8 +383,11 @@ where
                         };
                     }
                     return result;
+                } else {
+                    // When there is no connection, fallback to local call (LPC)
+                    warn!("[LOGIMESH] As there is no connection, fallback to local call.");
+                    return self.config.component.serve.call(ctx, request).await;
                 }
-                unreachable!("[LOGIMESH] Wow, that was a lot of attempts!");
             } else {
                 return self.config.component.serve.call(ctx, request).await;
             }

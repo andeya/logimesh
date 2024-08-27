@@ -45,7 +45,6 @@ logimesh = { version = "0.1" }
 tokio = { version = "1.0", features = ["macros"] }
 ```
 
-
 For a more real-world example, see [logimesh-example](logimesh-example).
 
 First, let's set up the dependencies and component definition.
@@ -112,8 +111,7 @@ use futures::future;
 use futures::prelude::*;
 use logimesh::server::incoming::Incoming;
 use logimesh::server::{self, Channel};
-use logimesh::tokio_serde::formats::Json;
-use service::{CompHello, World};
+use service::{init_tracing, CompHello, World};
 use std::net::{IpAddr, Ipv6Addr};
 
 #[derive(Parser)]
@@ -130,13 +128,14 @@ async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let flags = Flags::parse();
+    init_tracing("Tarpc Example Server")?;
 
     let server_addr = (IpAddr::V6(Ipv6Addr::LOCALHOST), flags.port);
 
     // JSON transport is provided by the json_transport logimesh module. It makes it easy
     // to start up a serde-powered json serialization strategy over TCP.
-    let mut listener = logimesh::transport::tcp::listen(&server_addr, Json::default).await?;
-    println!("Listening on port {}", listener.local_addr().port());
+    let mut listener = logimesh::transport::tcp::listen(&server_addr, CompHello::TRANSPORT_CODEC.to_fn()).await?;
+    tracing::info!("Listening on port {}", listener.local_addr().port());
     listener.config_mut().max_frame_length(usize::MAX);
     listener
         // Ignore accept errors.
