@@ -5,7 +5,8 @@ use logimesh::{client, context};
 #[doc = " This is the component definition. It looks a lot like a trait definition."]
 #[doc = " It defines one RPC, hello, which takes one arg, name, and returns a String."]
 #[allow(async_fn_in_trait)]
-pub trait World: ::core::marker::Sized + ::core::clone::Clone {
+pub trait World: ::core::marker::Sized + ::core::clone::Clone + 'static {
+    const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec;
     async fn hello(self, context: ::logimesh::context::Context, name: String) -> String;
     #[doc = r" Returns a serving function to use with"]
     #[doc = r" [InFlightRequest::execute](::logimesh::server::InFlightRequest::execute)."]
@@ -13,25 +14,35 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone {
         ServeWorld { service: self }
     }
     #[doc = r" Return a builder of a client that supports local and remote calls."]
-    fn logimesh_lrcall<D, LB>(
+    async fn logimesh_lrcall<D, LB>(
         self,
         endpoint: ::logimesh::component::Endpoint,
         discover: D,
         load_balance: LB,
-    ) -> ::logimesh::client::lrcall::Builder<ServeWorld<Self>, D, LB, fn(&::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, u32) -> bool>
+        config_ext: ::logimesh::client::lrcall::ConfigExt,
+    ) -> ::core::result::Result<
+        WorldClient<::logimesh::client::lrcall::LRCall<ServeWorld<Self>, D, LB, fn(&::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, u32) -> bool>>,
+        ::logimesh::client::ClientError,
+    >
     where
         D: ::logimesh::client::discover::Discover,
         LB: ::logimesh::client::balance::LoadBalance<ServeWorld<Self>>,
     {
-        ::logimesh::client::lrcall::Builder::new(
-            ::logimesh::component::Component {
-                serve: ServeWorld { service: self },
-                endpoint,
-            },
-            discover,
-            load_balance,
-        )
-        .with_retry_fn(Self::logimesh_should_retry)
+        Ok(WorldClient(
+            ::logimesh::client::lrcall::Builder::<ServeWorld<Self>, D, LB, fn(&::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, u32) -> bool>::new(
+                ::logimesh::component::Component {
+                    serve: ServeWorld { service: self },
+                    endpoint,
+                },
+                discover,
+                load_balance,
+            )
+            .with_config_ext(config_ext)
+            .with_transport_codec(Self::TRANSPORT_CODEC)
+            .with_retry_fn(Self::logimesh_should_retry)
+            .try_spawn()
+            .await?,
+        ))
     }
     #[doc = r" Judge whether a retry should be made according to the result returned by the call."]
     #[doc = r" When `::logimesh::client::stub::Config.enable_retry` is true, the method will be called."]
@@ -44,6 +55,7 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone {
 #[derive(Debug, Clone, Copy)]
 pub struct UnimplWorld;
 impl World for UnimplWorld {
+    const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec = ::logimesh::transport::codec::Codec::Bincode;
     #[allow(unused_variables)]
     async fn hello(self, context: ::logimesh::context::Context, name: String) -> String {
         unimplemented!()
@@ -76,6 +88,7 @@ where
 #[allow(missing_docs)]
 #[derive(
     Debug,
+    Clone,
     :: logimesh :: serde :: Serialize,
     :: logimesh :: serde ::
 Deserialize,
@@ -153,6 +166,7 @@ where
 struct CompHello;
 
 impl World for CompHello {
+    const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec = ::logimesh::transport::codec::Codec::Bincode;
     // Each defined rpc generates an async fn that serves the RPC
     async fn hello(self, _: context::Context, name: String) -> String {
         format!("Hello, {name}!")

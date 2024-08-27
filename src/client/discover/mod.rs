@@ -9,7 +9,6 @@
 
 use crate::component::Endpoint;
 use crate::net::address::Address;
-use crate::BoxError;
 use async_broadcast::Receiver;
 use faststr::FastStr;
 use std::borrow::Cow;
@@ -19,6 +18,7 @@ use std::future::Future;
 use std::sync::Arc;
 mod dummy;
 mod fixed;
+use super::ClientError;
 use core::marker::Send;
 pub use dummy::DummyDiscover;
 pub use fixed::FixedDiscover;
@@ -26,7 +26,7 @@ pub use fixed::FixedDiscover;
 /// [`Discover`] is the most basic trait for Discover.
 pub trait Discover: Send + Sync + 'static {
     /// `discover` allows to request an endpoint and return a discover future.
-    fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Discovery, BoxError>> + Send;
+    fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Discovery, ClientError>> + Send;
     /// `watch` should return a [`async_broadcast::Receiver`] which can be used to subscribe [`Discovery`].
     fn watch(&self, keys: Option<&[FastStr]>) -> Option<Receiver<Discovery>>;
 }

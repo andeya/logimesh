@@ -52,6 +52,7 @@ pub fn init_tracing(service_name: &'static str) -> anyhow::Result<()> {
 pub struct CompHello;
 
 impl World for CompHello {
+    const TRANSPORT_CODEC: logimesh::transport::codec::Codec = logimesh::transport::codec::Codec::Json;
     async fn hello(self, ctx: context::Context, name: String) -> String {
         let sleep_time = Duration::from_millis(Uniform::new_inclusive(1, 10).sample(&mut thread_rng()));
         time::sleep(sleep_time).await;

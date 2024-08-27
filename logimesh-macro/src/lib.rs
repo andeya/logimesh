@@ -451,6 +451,7 @@ impl<'a> ServiceGenerator<'a> {
             vis,
             return_types,
             service_ident,
+            client_ident,
             client_stub_ident,
             request_ident,
             response_ident,
@@ -481,7 +482,10 @@ impl<'a> ServiceGenerator<'a> {
         quote! {
             #( #attrs )*
             #[allow(async_fn_in_trait)]
-            #vis trait #service_ident: ::core::marker::Sized + ::core::clone::Clone {
+            #vis trait #service_ident: ::core::marker::Sized + ::core::clone::Clone + 'static {
+                const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec = ::logimesh::transport::codec::Codec::Bincode;
+                // const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec;
+
                 #( #rpc_fns )*
 
                 /// Returns a serving function to use with
@@ -491,25 +495,35 @@ impl<'a> ServiceGenerator<'a> {
                 }
 
                 /// Return a builder of a client that supports local and remote calls.
-                fn logimesh_lrcall<D, LB>(
+                async fn logimesh_lrcall<D, LB>(
                     self,
                     endpoint: ::logimesh::component::Endpoint,
                     discover: D,
                     load_balance: LB,
-                ) -> ::logimesh::client::lrcall::Builder<#server_ident<Self>, D, LB, fn(&::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, u32) -> bool>
+                    config_ext: ::logimesh::client::lrcall::ConfigExt,
+                ) -> ::core::result::Result<
+                    #client_ident<::logimesh::client::lrcall::LRCall<#server_ident<Self>, D, LB, fn(&::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, u32) -> bool>>,
+                    ::logimesh::client::ClientError,
+                >
                     where
                         D: ::logimesh::client::discover::Discover,
                         LB: ::logimesh::client::balance::LoadBalance<#server_ident<Self>>,
                 {
-                    ::logimesh::client::lrcall::Builder::new(
-                        ::logimesh::component::Component {
-                            serve: #server_ident { service: self },
-                            endpoint,
-                        },
-                        discover,
-                        load_balance,
-                    )
-                    .with_retry_fn(Self::logimesh_should_retry)
+                    Ok(#client_ident(
+                        ::logimesh::client::lrcall::Builder::<#server_ident<Self>, D, LB, fn(&::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, u32) -> bool>::new(
+                            ::logimesh::component::Component {
+                                serve: #server_ident { service: self },
+                                endpoint,
+                            },
+                            discover,
+                            load_balance,
+                        )
+                        .with_config_ext(config_ext)
+                        .with_transport_codec(Self::TRANSPORT_CODEC)
+                        .with_retry_fn(Self::logimesh_should_retry)
+                        .try_spawn()
+                        .await?,
+                    ))
                 }
 
                 /// Judge whether a retry should be made according to the result returned by the call.
@@ -525,6 +539,8 @@ impl<'a> ServiceGenerator<'a> {
             #vis struct #service_unimplemented_ident;
 
             impl #service_ident for #service_unimplemented_ident {
+                const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec = ::logimesh::transport::codec::Codec::Bincode;
+
                 #( #unimplemented_rpc_fns )*
             }
 

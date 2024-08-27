@@ -8,9 +8,9 @@
 //! Fixed instance list discover.
 
 use super::{Discover, Discovery, Instance, InstanceCluster};
+use crate::client::ClientError;
 use crate::component::Endpoint;
 use crate::net::address::Address;
-use crate::BoxError;
 use async_broadcast::Receiver;
 use faststr::FastStr;
 use std::future::Future;
@@ -55,7 +55,7 @@ impl FixedDiscover {
 }
 
 impl Discover for FixedDiscover {
-    fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Discovery, BoxError>> + Send {
+    fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Discovery, ClientError>> + Send {
         async move {
             Ok(Discovery {
                 key: endpoint.key(),

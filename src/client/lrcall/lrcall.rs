@@ -10,16 +10,15 @@ use crate::client::channel::{RpcChannel, RpcConfig};
 use crate::client::core::stub::Stub;
 use crate::client::core::{Config, RpcError};
 use crate::client::discover::{Discover, Discovery, Instance, InstanceCluster};
+use crate::client::ClientError;
 use crate::component::Component;
 use crate::net::Address;
 use crate::server::Serve;
 use crate::transport::codec::Codec;
-use crate::BoxError;
 use futures_util::{select, FutureExt};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use thiserror::Error;
 use tokio::sync::Notify;
 use tracing::{trace, warn};
 
@@ -46,6 +45,48 @@ where
     pub(crate) core_config: Config,
     /// A callback function for judging whether to re-initiate the request.
     pub(crate) retry_fn: Option<RF>,
+}
+
+/// A full client stbu config extend.
+#[non_exhaustive]
+pub struct ConfigExt {
+    /// The number of requests that can be in flight at once.
+    /// `max_in_flight_requests` controls the size of the map used by the client
+    /// for storing pending requests.
+    max_in_flight_requests: usize,
+    /// The number of requests that can be buffered client-side before being sent.
+    /// `pending_requests_buffer` controls the size of the channel clients use
+    /// to communicate with the request dispatch task.
+    pending_request_buffer: usize,
+}
+
+impl Default for ConfigExt {
+    fn default() -> Self {
+        let config: Config = Default::default();
+        Self {
+            max_in_flight_requests: config.max_in_flight_requests,
+            pending_request_buffer: config.pending_request_buffer,
+        }
+    }
+}
+
+impl ConfigExt {
+    /// The number of requests that can be in flight at once.
+    /// `max_in_flight_requests` controls the size of the map used by the client
+    /// for storing pending requests.
+    /// Default is 1000.
+    pub fn max_in_flight_requests(mut self, max_in_flight_requests: usize) -> Self {
+        self.max_in_flight_requests = max_in_flight_requests;
+        self
+    }
+    /// The number of requests that can be buffered client-side before being sent.
+    /// `pending_requests_buffer` controls the size of the channel clients use
+    /// to communicate with the request dispatch task.
+    /// Default is 100.
+    pub fn pending_request_buffer(mut self, pending_request_buffer: usize) -> Self {
+        self.pending_request_buffer = pending_request_buffer;
+        self
+    }
 }
 
 impl<S, D, LB, RF> Builder<S, D, LB, RF>
@@ -94,8 +135,14 @@ where
         self.retry_fn = Some(retry_fn);
         self
     }
+    /// Set some default extension configurations.
+    pub fn with_config_ext(mut self, config_ext: ConfigExt) -> Self {
+        self.core_config.max_in_flight_requests = config_ext.max_in_flight_requests;
+        self.core_config.pending_request_buffer = config_ext.pending_request_buffer;
+        self
+    }
     /// Spawn a local and remote client.
-    pub async fn try_spawn(self) -> Result<LRCall<S, D, LB, RF>, BoxError> {
+    pub async fn try_spawn(self) -> Result<LRCall<S, D, LB, RF>, ClientError> {
         LRCall {
             config: self,
             notify: Arc::new(Notify::new()),
@@ -104,21 +151,6 @@ where
         .warm_up()
         .await
     }
-    /// Spawn a local and remote client.
-    pub async fn try_spawn_into<T: From<LRCall<S, D, LB, RF>>>(self) -> Result<T, BoxError> {
-        self.try_spawn().await.map(|s| T::from(s))
-    }
-}
-
-/// load bnalance error
-#[derive(Error, Debug)]
-pub enum LoadBalanceError {
-    /// retry error
-    #[error("load balance retry reaches end")]
-    Retry,
-    /// discover error
-    #[error("load balance discovery error: {0:?}")]
-    Discover(#[from] BoxError),
 }
 
 /// A local and remote client.
@@ -145,7 +177,7 @@ where
     LB: LoadBalance<S>,
     RF: Fn(&Result<S::Resp, RpcError>, u32) -> bool,
 {
-    async fn warm_up(self) -> Result<Self, BoxError> {
+    async fn warm_up(self) -> Result<Self, ClientError> {
         let discovery = self.config.discover.discover(&self.config.component.endpoint).await?;
         let mut channels: Vec<RpcChannel<S>> = Vec::new();
         match discovery.instance_cluster {
@@ -208,7 +240,7 @@ where
         Ok(self)
     }
 
-    async fn diff_and_dial(transport_codec: Codec, core_config: &Config, prev: &mut Vec<RpcChannel<S>>, next: Vec<Arc<Instance>>) -> Result<Option<RpcChange<S>>, BoxError>
+    async fn diff_and_dial(transport_codec: Codec, core_config: &Config, prev: &mut Vec<RpcChannel<S>>, next: Vec<Arc<Instance>>) -> Result<Option<RpcChange<S>>, ClientError>
     where
         S: Serve,
     {

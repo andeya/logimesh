@@ -8,8 +8,8 @@
 //! Dummy discover.
 
 use super::{Discover, Discovery, InstanceCluster};
+use crate::client::ClientError;
 use crate::component::Endpoint;
-use crate::BoxError;
 use async_broadcast::Receiver;
 use faststr::FastStr;
 use std::future::Future;
@@ -21,7 +21,7 @@ use std::future::Future;
 pub struct DummyDiscover;
 
 impl Discover for DummyDiscover {
-    fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Discovery, BoxError>> + Send {
+    fn discover<'s>(&'s self, endpoint: &'s Endpoint) -> impl Future<Output = Result<Discovery, ClientError>> + Send {
         async move {
             Ok(Discovery {
                 key: endpoint.key(),
