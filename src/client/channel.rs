@@ -153,14 +153,14 @@ where
                 Ok(tarpc::client::new(stub_config, conn.await?).spawn())
             },
             #[cfg(feature = "serde-transport-messagepack")]
-            MessagePack => {
+            Codec::MessagePack => {
                 /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
                 let mut conn = tcp::connect(address, MessagePack::default);
                 conn.config_mut().max_frame_length(usize::MAX);
                 Ok(tarpc::client::new(stub_config, conn.await?).spawn())
             },
             #[cfg(feature = "serde-transport-cbor")]
-            Cbor => {
+            Codec::Cbor => {
                 /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
                 let mut conn = tcp::connect(address, Cbor::default);
                 conn.config_mut().max_frame_length(usize::MAX);

@@ -9,6 +9,9 @@
 #![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![feature(associated_type_defaults)]
+#![feature(unboxed_closures)]
+#![feature(fn_traits)]
+#![feature(impl_trait_in_assoc_type)]
 
 pub use logimesh_macro::{component, derive_serde};
 pub mod client;
