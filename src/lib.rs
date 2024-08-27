@@ -8,29 +8,44 @@
 #![deny(missing_docs)]
 #![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![feature(associated_type_defaults)]
+#![feature(unboxed_closures)]
+#![feature(fn_traits)]
 #![feature(impl_trait_in_assoc_type)]
 
 pub use logimesh_macro::{component, derive_serde};
-
 pub mod client;
-pub mod discover;
-/// re-public `tarpc` crate something.
-pub use crate::tarpc::*;
+pub mod component;
+pub mod context;
+pub mod net;
+pub mod server;
+pub mod transport;
+pub use ::tarpc::{serde, tokio_serde, tokio_util, ChannelError, ClientMessage, Request, RequestName, Response, ServerError};
+pub use transport::Transport;
+pub mod trace;
 
-mod tarpc {
-    #[doc(hidden)]
-    pub use ::tarpc::serde;
+#[allow(unreachable_pub, dead_code)]
+mod sealed {
+    pub trait Sealed<T> {}
+}
 
-    pub use ::tarpc::{tokio_serde, tokio_util};
+/// Alias for a type-erased error type.
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-    #[cfg_attr(docsrs, doc())]
-    pub use ::tarpc::serde_transport;
+/// Convert from [`Result<T, BoxError>`] to [`Result<T, anyhow::Error>`]
+pub trait IntoAnyResult<T> {
+    /// Convert from [`Result<T, BoxError>`] to [`Result<T, anyhow::Error>`]
+    fn any_result(self) -> Result<T, anyhow::Error>;
+}
 
-    pub use ::tarpc::trace;
+impl<T> IntoAnyResult<T> for Result<T, BoxError> {
+    fn any_result(self) -> Result<T, anyhow::Error> {
+        self.map_err(|e| anyhow::anyhow!("{e:?}"))
+    }
+}
 
-    pub use ::tarpc::{context, server, transport};
-
-    pub use ::tarpc::Transport;
-
-    pub use ::tarpc::{ChannelError, ClientMessage, Request, RequestName, Response, ServerError};
+#[test]
+fn any_result() {
+    let r: Result<bool, BoxError> = Err(BoxError::from("NaN".parse::<u32>().unwrap_err()));
+    println!("{:?}", r.any_result());
 }

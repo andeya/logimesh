@@ -32,8 +32,24 @@ tarpc = { workspace = true, features = ["full"] }
 logimesh-macro = { workspace = true, features = ["serde1"] }
 serde = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }
-tower = { workspace = true }
-futures = { workspace = true }
+pin-project-lite = { workspace = true }
+futures-core = { workspace = true }
+futures-util = { workspace = true, features = ["alloc"] }
+async-broadcast = { workspace = true }
+socket2 = { workspace = true, features = ["all"] }
+tokio = { workspace = true, features = [
+    "full",
+    "test-util",
+    "tracing",
+    "rt-multi-thread",
+    "macros",
+] }
+thiserror = { workspace = true }
+metainfo = { workspace = true }
+faststr = { workspace = true }
+dashmap = { workspace = true }
+rand = { workspace = true }
+tracing = { workspace = true, features = ["attributes", "log"] }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
@@ -80,7 +96,7 @@ resolver = "2"
 members = ["logimesh-macro", "logimesh-example"]
 
 [workspace.package]
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 authors = ["Andeya Lee <andeyalee@outlook.com>"]
 license = "MIT"
@@ -99,12 +115,16 @@ logimesh = { path = "./" }
 # all dependencies
 
 tarpc = { package = "tarpc-copy", version = "=0.34.0-copy.f81ddd6" }
+async-broadcast = "0.7"
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = "2.0.74"
 anyhow = "1.0"
 fnv = "1.0"
-futures = "0.3"
+futures = "0.3.22"
+futures-core = "0.3.22"
+futures-util = { version = "0.3.22", default-features = false }
+pin-project-lite = "0.2.7"
 humantime = "2.0"
 pin-project = "1.0"
 rand = "0.8"
@@ -118,9 +138,10 @@ tracing = { version = "0.1", default-features = false }
 tracing-opentelemetry = { version = "0.25.0", default-features = false }
 opentelemetry = { version = "0.24.0", default-features = false }
 opentelemetry-semantic-conventions = "0.16.0"
-tower = "0.5.0"
-
-# only for dev-dependencies
+socket2 = "0.5"
+metainfo = "0.7"
+faststr = "0.2"
+dashmap = "6"
 assert-type-eq = "0.1.0"
 clap = { version = "4.4.18" }
 log = "0.4"

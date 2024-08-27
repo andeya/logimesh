@@ -6,15 +6,17 @@
 // https://opensource.org/licenses/MIT.
 
 use clap::Parser;
-use logimesh::client::stub::LRConfig;
-use logimesh::client::stub::TransportCodec::Json;
+use logimesh::client::balance::RandomBalance;
+use logimesh::client::discover::FixedDiscover;
+use logimesh::client::lrcall::ConfigExt;
+use logimesh::component::Endpoint;
 use logimesh::context;
-use logimesh::discover::service_lookup_from_addresses;
-use service::{init_tracing, CompHello, World as _};
+use service::{init_tracing, CompHello, World};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::Instrument;
+
 #[derive(Parser)]
 struct Flags {
     /// Sets the server address to connect to.
@@ -31,7 +33,12 @@ async fn main() -> anyhow::Result<()> {
     init_tracing("Tarpc Example Client")?;
 
     let client = CompHello
-        .logimesh_client(LRConfig::new("p.s.m".into(), service_lookup_from_addresses(vec![flags.server_addr.to_string()])).with_transport_codec(Json))
+        .logimesh_lrcall(
+            Endpoint::new("p.s.m"),
+            FixedDiscover::from_address(vec![flags.server_addr.into()]),
+            RandomBalance::new(),
+            ConfigExt::default(),
+        )
         .await?;
 
     let hello = async move {

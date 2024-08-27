@@ -10,9 +10,9 @@ use flate2::write::DeflateEncoder;
 use flate2::Compression;
 use futures::prelude::*;
 use futures::{Sink, SinkExt, Stream, StreamExt, TryStreamExt};
-use logimesh::serde_transport::tcp;
 use logimesh::server::{BaseChannel, Channel};
 use logimesh::tokio_serde::formats::Bincode;
+use logimesh::transport::tcp;
 use logimesh::{client, context};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
@@ -119,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let transport = tcp::connect(addr, Bincode::default).await?;
-    let client = WorldClient::new(client::Config::default(), add_compression(transport)).spawn();
+    let client = WorldClient::new(client::core::Config::default(), add_compression(transport)).spawn();
 
     println!("{}", client.hello(context::current(), "friend".into()).await?);
     Ok(())
