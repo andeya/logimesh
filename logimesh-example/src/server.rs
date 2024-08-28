@@ -20,9 +20,9 @@ struct Flags {
     port: u16,
 }
 
-async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-    tokio::spawn(fut);
-}
+// async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
+//     tokio::spawn(fut);
+// }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -33,7 +33,12 @@ async fn main() -> anyhow::Result<()> {
 
     // JSON transport is provided by the json_transport logimesh module. It makes it easy
     // to start up a serde-powered json serialization strategy over TCP.
-    let mut listener = logimesh::transport::tcp::listen(&server_addr, CompHello::TRANSPORT_CODEC.to_fn()).await?;
+    let mut listener: logimesh::transport::tcp::Incoming<
+        logimesh::ClientMessage<service::WorldRequest>,
+        logimesh::Response<service::WorldResponse>,
+        logimesh::transport::codec::CodecFn<logimesh::ClientMessage<service::WorldRequest>, logimesh::Response<service::WorldResponse>>,
+        logimesh::transport::codec::CodecFn<logimesh::ClientMessage<service::WorldRequest>, logimesh::Response<service::WorldResponse>>,
+    > = logimesh::transport::tcp::listen(&server_addr, CompHello::TRANSPORT_CODEC.to_fn()).await?;
     tracing::info!("Listening on port {}", listener.local_addr().port());
     listener.config_mut().max_frame_length(usize::MAX);
     listener
@@ -46,7 +51,9 @@ async fn main() -> anyhow::Result<()> {
         // the generated World trait.
         .map(|channel| {
             let server = CompHello;
-            channel.execute(server.logimesh_serve()).for_each(spawn)
+            channel.execute(server.logimesh_serve()).for_each(|fut| async {
+                tokio::spawn(fut);
+            })
         })
         // Max 10 channels.
         .buffer_unordered(10)
