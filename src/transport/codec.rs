@@ -5,12 +5,13 @@
 // https://opensource.org/licenses/MIT.
 //! A client stbu config.
 
+pub use ::tarpc::tokio_serde::formats::*;
+use bytes::{Bytes, BytesMut};
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::pin::Pin;
 use std::sync::Arc;
-
-pub use ::tarpc::tokio_serde::formats::*;
-use bytes::{Bytes, BytesMut};
+use tarpc::tokio_serde::{Deserializer, Serializer};
 
 /// Transport serde codec
 #[derive(Debug, Clone, Copy)]
@@ -98,9 +99,6 @@ impl<Item, SinkItem> From<Codec> for CodecFn<Item, SinkItem> {
         value.to_fn()
     }
 }
-
-use serde::{Deserialize, Serialize};
-use tarpc::tokio_serde::{Deserializer, Serializer};
 
 impl<Item, SinkItem> Deserializer<Item> for CodecFn<Item, SinkItem>
 where
