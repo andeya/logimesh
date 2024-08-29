@@ -30,7 +30,7 @@ struct Flags {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let flags = Flags::parse();
-    init_tracing("Tarpc Example Client")?;
+    init_tracing("Logimesh Example Client")?;
 
     let client = CompHello
         .logimesh_lrcall(
