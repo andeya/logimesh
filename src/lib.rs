@@ -12,6 +12,7 @@
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
 #![feature(impl_trait_in_assoc_type)]
+#![feature(get_mut_unchecked)]
 
 pub use logimesh_macro::{component, derive_serde};
 pub mod client;

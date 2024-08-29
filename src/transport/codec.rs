@@ -8,7 +8,6 @@
 pub use ::tarpc::tokio_serde::formats::*;
 use bytes::{Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::pin::Pin;
 use std::sync::Arc;
 use tarpc::tokio_serde::{Deserializer, Serializer};
@@ -38,15 +37,15 @@ impl Default for Codec {
 #[derive(Debug)]
 pub enum CodecFn<Item, SinkItem> {
     /// Bincode codec using [bincode](https://docs.rs/bincode) crate.
-    Bincode(Arc<RefCell<Bincode<Item, SinkItem>>>),
+    Bincode(Arc<Bincode<Item, SinkItem>>),
     /// JSON codec using [serde_json](https://docs.rs/serde_json) crate.
-    Json(Arc<RefCell<Json<Item, SinkItem>>>),
+    Json(Arc<Json<Item, SinkItem>>),
     /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
     #[cfg(feature = "serde-transport-messagepack")]
-    MessagePack(Arc<RefCell<MessagePack<Item, SinkItem>>>),
+    MessagePack(Arc<MessagePack<Item, SinkItem>>),
     /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
     #[cfg(feature = "serde-transport-cbor")]
-    Cbor(Arc<RefCell<Cbor<Item, SinkItem>>>),
+    Cbor(Arc<Cbor<Item, SinkItem>>),
 }
 
 impl<Item, SinkItem> Clone for CodecFn<Item, SinkItem> {
@@ -64,7 +63,7 @@ impl<Item, SinkItem> Clone for CodecFn<Item, SinkItem> {
 
 impl<Item, SinkItem> Default for CodecFn<Item, SinkItem> {
     fn default() -> Self {
-        CodecFn::Bincode(Arc::new(RefCell::new(Bincode::default())))
+        CodecFn::Bincode(Arc::new(Bincode::default()))
     }
 }
 
@@ -74,21 +73,21 @@ impl Codec {
         match self {
             Self::Bincode => {
                 // Bincode codec using [bincode](https://docs.rs/bincode) crate.
-                CodecFn::Bincode(Arc::new(RefCell::new(Bincode::default())))
+                CodecFn::Bincode(Arc::new(Bincode::default()))
             },
             Self::Json => {
                 // JSON codec using [serde_json](https://docs.rs/serde_json) crate.
-                CodecFn::Json(Arc::new(RefCell::new(Json::default())))
+                CodecFn::Json(Arc::new(Json::default()))
             },
             #[cfg(feature = "serde-transport-messagepack")]
             Self::MessagePack => {
                 /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
-                CodecFn::MessagePack(Arc::new(RefCell::new(MessagePack::default())))
+                CodecFn::MessagePack(Arc::new(MessagePack::default()))
             },
             #[cfg(feature = "serde-transport-cbor")]
             Self::Cbor => {
                 /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
-                CodecFn::Cbor(Arc::new(RefCell::new(Cbor::default())))
+                CodecFn::Cbor(Arc::new(Cbor::default()))
             },
         }
     }
@@ -102,38 +101,36 @@ impl<Item, SinkItem> From<Codec> for CodecFn<Item, SinkItem> {
 
 impl<Item, SinkItem> Deserializer<Item> for CodecFn<Item, SinkItem>
 where
-    for<'a> Item: Unpin + Deserialize<'a>,
-    SinkItem: Unpin,
+    for<'a> Item: Deserialize<'a>,
 {
     type Error = std::io::Error;
 
     fn deserialize(self: Pin<&mut Self>, src: &BytesMut) -> Result<Item, Self::Error> {
         match self.get_mut() {
-            CodecFn::Bincode(c) => Ok(Pin::new(&mut *c.borrow_mut()).deserialize(src)?),
-            CodecFn::Json(c) => Ok(Pin::new(&mut *c.borrow_mut()).deserialize(src)?),
+            CodecFn::Bincode(c) => Ok(unsafe { Pin::new_unchecked(Arc::get_mut_unchecked(c)) }.deserialize(src)?),
+            CodecFn::Json(c) => Ok(unsafe { Pin::new_unchecked(Arc::get_mut_unchecked(c)) }.deserialize(src)?),
             #[cfg(feature = "serde-transport-messagepack")]
-            CodecFn::MessagePack(c) => Ok(Pin::new(&mut *c.borrow_mut()).deserialize(src)?),
+            CodecFn::MessagePack(c) => Ok(unsafe { Pin::new_unchecked(Arc::get_mut_unchecked(c)) }.deserialize(src)?),
             #[cfg(feature = "serde-transport-cbor")]
-            CodecFn::Cbor(c) => Ok(Pin::new(&mut *c.borrow_mut()).deserialize(src)?),
+            CodecFn::Cbor(c) => Ok(unsafe { Pin::new_unchecked(Arc::get_mut_unchecked(c)) }.deserialize(src)?),
         }
     }
 }
 
 impl<Item, SinkItem> Serializer<SinkItem> for CodecFn<Item, SinkItem>
 where
-    Item: Unpin,
-    SinkItem: Serialize + Unpin,
+    SinkItem: Serialize,
 {
     type Error = std::io::Error;
 
     fn serialize(self: Pin<&mut Self>, item: &SinkItem) -> Result<Bytes, Self::Error> {
         match self.get_mut() {
-            CodecFn::Bincode(c) => Ok(Pin::new(&mut *c.borrow_mut()).serialize(item)?),
-            CodecFn::Json(c) => Ok(Pin::new(&mut *c.borrow_mut()).serialize(item)?),
+            CodecFn::Bincode(c) => Ok(unsafe { Pin::new_unchecked(Arc::get_mut_unchecked(c)) }.serialize(item)?),
+            CodecFn::Json(c) => Ok(unsafe { Pin::new_unchecked(Arc::get_mut_unchecked(c)) }.serialize(item)?),
             #[cfg(feature = "serde-transport-messagepack")]
-            CodecFn::MessagePack(c) => Ok(Pin::new(&mut *c.borrow_mut()).serialize(item)?),
+            CodecFn::MessagePack(c) => Ok(unsafe { Pin::new_unchecked(Arc::get_mut_unchecked(c)) }.serialize(item)?),
             #[cfg(feature = "serde-transport-cbor")]
-            CodecFn::Cbor(c) => Ok(Pin::new(&mut *c.borrow_mut()).serialize(item)?),
+            CodecFn::Cbor(c) => Ok(unsafe { Pin::new_unchecked(Arc::get_mut_unchecked(c)) }.serialize(item)?),
         }
     }
 }
