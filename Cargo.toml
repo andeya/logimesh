@@ -1,103 +1,11 @@
-[package]
-name = "logimesh"
-description = "logimesh is a Rust microservice 2.0 framework."
-documentation = "https://docs.rs/logimesh"
-readme.workspace = true
-version.workspace = true
-rust-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
-categories.workspace = true
-keywords.workspace = true
-
-[lib]
-path = "src/lib.rs"    # The source file of the target.
-test = true            # Is tested by default.
-doctest = true         # Documentation examples are tested by default.
-bench = true           # Is benchmarked by default.
-doc = true             # Is documented by default.
-proc-macro = false     # Set to `true` for a proc-macro library.
-harness = true         # Use libtest harness.
-crate-type = ["lib"]   # The crate types to generate.
-required-features = [] # Features required to build this target (N/A for lib).
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
-
-[dependencies]
-tarpc = { workspace = true, features = ["full"] }
-logimesh-macro = { workspace = true, features = ["serde1"] }
-serde = { workspace = true, features = ["derive"] }
-anyhow = { workspace = true }
-pin-project-lite = { workspace = true }
-futures-core = { workspace = true }
-futures-util = { workspace = true, features = ["alloc"] }
-async-broadcast = { workspace = true }
-socket2 = { workspace = true, features = ["all"] }
-tokio = { workspace = true, features = [
-    "full",
-    "test-util",
-    "tracing",
-    "rt-multi-thread",
-    "macros",
-] }
-thiserror = { workspace = true }
-metainfo = { workspace = true }
-faststr = { workspace = true }
-rand = { workspace = true }
-tracing = { workspace = true, features = ["attributes", "log"] }
-bytes = { workspace = true, features = ["serde"] }
-futures = { workspace = true }
-
-[dev-dependencies]
-serde = { workspace = true, features = ["derive"] }
-anyhow = { workspace = true }
-futures = { workspace = true }
-tokio = { workspace = true, features = [
-    "full",
-    "test-util",
-    "tracing",
-    "rt-multi-thread",
-    "macros",
-] }
-assert_matches = { workspace = true }
-bincode = { workspace = true }
-bytes = { workspace = true, features = ["serde"] }
-flate2 = { workspace = true }
-futures-test = { workspace = true }
-opentelemetry = { workspace = true, default-features = false }
-opentelemetry-otlp = { workspace = true }
-opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
-opentelemetry-semantic-conventions = { workspace = true }
-tracing-opentelemetry = { workspace = true }
-tracing = { workspace = true, features = ["attributes", "log"] }
-pin-utils = { workspace = true }
-serde_bytes = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-console-subscriber = { workspace = true }
-tokio-serde = { workspace = true, features = ["json", "bincode"] }
-trybuild = { workspace = true }
-tokio-rustls = { workspace = true }
-rustls-pemfile = { workspace = true }
-
-
-[features]
-default = []
-full = ["serde-transport-messagepack", "serde-transport-cbor"]
-serde-transport-messagepack = ["tokio-serde/messagepack"]
-serde-transport-cbor = ["tokio-serde/cbor"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
 resolver = "2"
-members = ["logimesh-macro", "logimesh-example"]
+members = ["logimesh", "logimesh-macro", "logimesh-example"]
 
 [workspace.package]
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 authors = ["Andeya Lee <andeyalee@outlook.com>"]
 license = "MIT"
@@ -111,7 +19,7 @@ keywords = ["rpc", "server", "api", "microservices", "servicemesh"]
 [workspace.dependencies]
 
 logimesh-macro = { version = "0.1", path = "./logimesh-macro" }
-logimesh = { path = "./" }
+logimesh = { version = "0.1", path = "./logimesh" }
 
 # all dependencies
 

@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 //!
-//! logimesh is a Rust microservice 2.0 framework.
+//! logimesh is a Rust RPC Microservice 2.0 framework.
 #![deny(missing_docs)]
 #![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]

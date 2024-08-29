@@ -1,6 +1,6 @@
 # logimesh
 
-`logimesh` is a Rust microcomponent 2.0 framework inspired by the [_Towards Modern Development of Cloud Applications_](https://dl.acm.org/doi/pdf/10.1145/3593856.3595909) paper.
+`logimesh` is a Rust RPC Microservice 2.0 framework inspired by the [_Towards Modern Development of Cloud Applications_](https://dl.acm.org/doi/pdf/10.1145/3593856.3595909) paper.
 
 _（This is one of my amateur idea and is only developed in leisure-time.）_
 
