@@ -5,12 +5,12 @@
 // https://opensource.org/licenses/MIT.
 //! A client stbu config.
 
-pub use ::tarpc::tokio_serde::formats::*;
+pub use ::tokio_serde::formats::*;
+use ::tokio_serde::{Deserializer, Serializer};
 use bytes::{Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 use std::sync::Arc;
-use tarpc::tokio_serde::{Deserializer, Serializer};
 
 /// Transport serde codec
 #[derive(Debug, Clone, Copy)]
@@ -81,12 +81,12 @@ impl Codec {
             },
             #[cfg(feature = "serde-transport-messagepack")]
             Self::MessagePack => {
-                /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
+                // MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
                 CodecFn::MessagePack(Arc::new(MessagePack::default()))
             },
             #[cfg(feature = "serde-transport-cbor")]
             Self::Cbor => {
-                /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
+                // CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
                 CodecFn::Cbor(Arc::new(Cbor::default()))
             },
         }

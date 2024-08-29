@@ -6,7 +6,7 @@
 //! Provides building blocks for tracing distributed programs.
 //!
 //! A trace is logically a tree of causally-related events called spans. Traces are tracked via a
-//! [context](Context) that identifies the current trace, span, and parent of the current span.  In
+//! [context](crate::context::Context) that identifies the current trace, span, and parent of the current span.  In
 //! distributed systems, a context can be sent from client to server to connect events occurring on
 //! either side.
 //!

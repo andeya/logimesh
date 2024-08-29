@@ -5,7 +5,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 //!
-//! The component is a type that carries the service instance [`logimesh::server::Serve`] and endpoint information [`logimesh::component::Endpoint`].
+//! The component is a type that carries the service instance [`crate::server::Serve`] and endpoint information [`crate::component::Endpoint`].
 
 use crate::net::Address;
 use faststr::FastStr;
@@ -14,11 +14,11 @@ use std::fmt::Debug;
 
 const DEFAULT_MAP_CAPACITY: usize = 10;
 
-/// The component is a type that carries the service instance [`logimesh::server::Serve`] and endpoint information [`logimesh::component::Endpoint`].
+/// The component is a type that carries the service instance [`crate::server::Serve`] and endpoint information [`crate::component::Endpoint`].
 pub struct Component<S> {
-    /// The service instance [`logimesh::server::Serve`].
+    /// The service instance [`crate::server::Serve`].
     pub serve: S,
-    /// The endpoint information [`logimesh::component::Endpoint`]
+    /// The endpoint information [`crate::component::Endpoint`]
     pub endpoint: Endpoint,
 }
 

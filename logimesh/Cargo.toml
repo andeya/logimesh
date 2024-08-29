@@ -51,6 +51,7 @@ rand = { workspace = true }
 tracing = { workspace = true, features = ["attributes", "log"] }
 bytes = { workspace = true, features = ["serde"] }
 futures = { workspace = true }
+tokio-serde = { workspace = true, features = ["json", "bincode"] }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
