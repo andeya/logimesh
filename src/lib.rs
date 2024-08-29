@@ -24,6 +24,7 @@ pub mod transport;
 pub use ::tarpc::{serde, tokio_serde, tokio_util, ChannelError, ClientMessage, Request, RequestName, Response, ServerError};
 pub use transport::Transport;
 pub mod trace;
+pub use ::futures;
 
 #[allow(unreachable_pub, dead_code)]
 mod sealed {

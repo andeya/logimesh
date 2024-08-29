@@ -19,7 +19,7 @@ struct Flags {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let flags = Flags::parse();
-    init_tracing("Tarpc Example Server")?;
+    init_tracing("Logimesh Example Server")?;
 
     logimesh::tokio_tcp_listen!(CompHello, logimesh::server::TcpConfig::new((IpAddr::V6(Ipv6Addr::LOCALHOST), flags.port)));
 

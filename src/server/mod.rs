@@ -14,6 +14,18 @@ mod core {
 }
 
 /// TCP server config.
+/// # Example:
+/// ```
+/// extern crate tokio;
+/// extern crate anyhow;
+/// extern crate logimesh;
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     logimesh::tokio_tcp_listen!(CompHello, logimesh::server::TcpConfig::new("[::1]:8888".parse::<std::net::SocketAddrV6>().unwrap()));
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct TcpConfig<A: ToSocketAddrs> {
@@ -111,7 +123,7 @@ impl<A: ToSocketAddrs> TcpConfig<A> {
 #[macro_export]
 macro_rules! tokio_tcp_listen {
     ($component:expr, $tcp_config:expr) => {{
-        use ::futures::prelude::*;
+        use ::logimesh::futures::prelude::*;
         use ::logimesh::server::incoming::Incoming as _;
         use ::logimesh::server::Channel as _;
         let serve = $component.logimesh_serve();

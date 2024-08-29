@@ -39,9 +39,8 @@ path = "src/lib.rs"
 ...
 
 [dependencies]
-anyhow = "1.0"
-futures = "0.3"
 logimesh = { version = "0.1" }
+anyhow = "1.0"
 tokio = { version = "1.0", features = ["macros"] }
 ```
 
@@ -52,15 +51,7 @@ First, let's set up the dependencies and component definition.
 ### `lib.rs` file
 
 ```rust
-# extern crate futures;
-
-use futures::{
-    prelude::*,
-};
-use logimesh::{
-    client, context,
-    server::{self, incoming::Incoming, Channel},
-};
+extern crate logimesh;
 
 // This is the component definition. It looks a lot like a trait definition.
 // It defines one RPC, hello, which takes one arg, name, and returns a String.
@@ -75,14 +66,8 @@ This component definition generates a trait called `World`. Next we need to
 implement it for our Server struct.
 
 ```rust
-# extern crate futures;
-# use futures::{
-#     prelude::*,
-# };
-# use logimesh::{
-#     client, context,
-#     server::{self, incoming::Incoming},
-# };
+# extern crate logimesh;
+#
 # // This is the component definition. It looks a lot like a trait definition.
 # // It defines one RPC, hello, which takes one arg, name, and returns a String.
 # #[logimesh::component]
@@ -90,15 +75,19 @@ implement it for our Server struct.
 #     /// Returns a greeting for name.
 #     async fn hello(name: String) -> String;
 # }
+
+use logimesh::context;
+use logimesh::transport::codec::Codec;
+
 /// This is the type that implements the generated World trait. It is the business logic
 /// and is used to start the server.
 #[derive(Clone)]
-struct CompHello;
+pub struct CompHello;
 
 impl World for CompHello {
-    // Each defined rpc generates an async fn that serves the RPC
-    async fn hello(self, _: context::Context, name: String) -> String {
-        format!("Hello, {name}!")
+    const TRANSPORT_CODEC: Codec = Codec::Json;
+    async fn hello(self, ctx: context::Context, name: String) -> String {
+        format!("Hello, {name}! context: {:?}", ctx)
     }
 }
 ```
@@ -106,24 +95,13 @@ impl World for CompHello {
 ### `server.rs` file
 
 ```rust
-use clap::Parser;
-use service::{init_tracing, CompHello, World};
-use std::net::{IpAddr, Ipv6Addr};
-
-#[derive(Parser)]
-struct Flags {
-    /// Sets the port number to listen on.
-    #[clap(long)]
-    port: u16,
-}
+extern crate logimesh;
+extern crate tokio;
+extern crate anyhow;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let flags = Flags::parse();
-    init_tracing("Tarpc Example Server")?;
-
-    logimesh::tokio_tcp_listen!(CompHello, logimesh::server::TcpConfig::new((IpAddr::V6(Ipv6Addr::LOCALHOST), flags.port)));
-
+    logimesh::tokio_tcp_listen!(CompHello, logimesh::server::TcpConfig::new("[::1]:8888".parse::<std::net::SocketAddrV6>().unwrap()));
     Ok(())
 }
 ```
@@ -131,37 +109,23 @@ async fn main() -> anyhow::Result<()> {
 ### `client.rs` file
 
 ```rust
-use clap::Parser;
+extern crate logimesh;
+extern crate tokio;
+extern crate anyhow;
+
 use logimesh::client::balance::RandomBalance;
 use logimesh::client::discover::FixedDiscover;
 use logimesh::client::lrcall::ConfigExt;
 use logimesh::component::Endpoint;
 use logimesh::context;
-use service::{init_tracing, CompHello, World};
-use std::net::SocketAddr;
-use std::time::Duration;
-use tokio::time::sleep;
-use tracing::Instrument;
-
-#[derive(Parser)]
-struct Flags {
-    /// Sets the server address to connect to.
-    #[clap(long)]
-    server_addr: SocketAddr,
-    /// Sets the name to say hello to.
-    #[clap(long)]
-    name: String,
-}
+use service::{CompHello, World};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let flags = Flags::parse();
-    init_tracing("Tarpc Example Client")?;
-
     let client = CompHello
         .logimesh_lrcall(
             Endpoint::new("p.s.m"),
-            FixedDiscover::from_address(vec![flags.server_addr.into()]),
+            FixedDiscover::from_address(vec!["[::1]:8888".parse::<std::net::SocketAddrV6>().unwrap()]),
             RandomBalance::new(),
             ConfigExt::default(),
         )
@@ -174,17 +138,12 @@ async fn main() -> anyhow::Result<()> {
             hello2 = client.hello(context::current(), format!("{}2", flags.name)) => { hello2 }
         }
     }
-    .instrument(tracing::info_span!("Two Hellos"))
     .await;
 
     match hello {
-        Ok(hello) => tracing::info!("{hello:?}"),
-        Err(e) => tracing::warn!("{:?}", anyhow::Error::from(e)),
+        Ok(hello) => println!("{hello:?}"),
+        Err(e) => println!("{:?}", anyhow::Error::from(e)),
     }
-
-    // Let the background span processor finish.
-    sleep(Duration::from_micros(10)).await;
-    opentelemetry::global::shutdown_tracer_provider();
 
     Ok(())
 }
