@@ -1,7 +1,6 @@
 use futures::prelude::*;
 use logimesh::server::{self, Channel};
 use logimesh::{client, context};
-
 #[doc = " This is the component definition. It looks a lot like a trait definition."]
 #[doc = " It defines one RPC, hello, which takes one arg, name, and returns a String."]
 #[allow(async_fn_in_trait)]
@@ -14,22 +13,19 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone + 'static {
     fn logimesh_serve(self) -> ServeWorld<Self> {
         ServeWorld { service: self }
     }
-    #[doc = r" Return a builder of a client that supports local and remote calls."]
-    async fn logimesh_lrcall<D, LB>(
+    #[doc = r" Returns a client that supports local and remote calls."]
+    async fn logimesh_lrclient<D, LB>(
         self,
         endpoint: ::logimesh::component::Endpoint,
         discover: D,
         load_balance: LB,
         config_ext: ::logimesh::client::lrcall::ConfigExt,
-    ) -> ::core::result::Result<
-        WorldClient<::logimesh::client::lrcall::LRCall<ServeWorld<Self>, D, LB, fn(&::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, u32) -> bool>>,
-        ::logimesh::client::ClientError,
-    >
+    ) -> ::core::result::Result<WorldLRClient<Self, D, LB>, ::logimesh::client::ClientError>
     where
         D: ::logimesh::client::discover::Discover,
         LB: ::logimesh::client::balance::LoadBalance<ServeWorld<Self>>,
     {
-        Ok(WorldClient(
+        Ok(WorldLRClient(WorldClient(
             ::logimesh::client::lrcall::Builder::<ServeWorld<Self>, D, LB, fn(&::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, u32) -> bool>::new(
                 ::logimesh::component::Component {
                     serve: ServeWorld { service: self },
@@ -43,7 +39,7 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone + 'static {
             .with_retry_fn(Self::logimesh_should_retry)
             .try_spawn()
             .await?,
-        ))
+        )))
     }
     #[doc = r" Judge whether a retry should be made according to the result returned by the call."]
     #[doc = r" When `::logimesh::client::stub::Config.enable_retry` is true, the method will be called."]
@@ -93,7 +89,13 @@ where
 }
 #[doc = r" The request sent over the wire from the client to the server."]
 #[allow(missing_docs)]
-#[derive(Debug, Clone, :: logimesh :: serde :: Serialize, :: logimesh :: serde ::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    :: logimesh :: serde :: Serialize,
+    :: logimesh :: serde ::
+Deserialize,
+)]
 #[serde(crate = "::logimesh::serde")]
 pub enum WorldRequest {
     Hello { name: String },
@@ -158,6 +160,23 @@ where
                 _ => ::core::unreachable!(),
             }
         }
+    }
+}
+#[doc = r" A client new-type that supports local and remote calls."]
+pub struct WorldLRClient<S, D, LB>(WorldClient<::logimesh::client::lrcall::LRCall<ServeWorld<S>, D, LB, fn(&::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, u32) -> bool>>)
+where
+    S: World,
+    D: ::logimesh::client::discover::Discover,
+    LB: ::logimesh::client::balance::LoadBalance<ServeWorld<S>>;
+impl<S, D, LB> ::std::ops::Deref for WorldLRClient<S, D, LB>
+where
+    S: World,
+    D: ::logimesh::client::discover::Discover,
+    LB: ::logimesh::client::balance::LoadBalance<ServeWorld<S>>,
+{
+    type Target = WorldClient<::logimesh::client::lrcall::LRCall<ServeWorld<S>, D, LB, fn(&::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, u32) -> bool>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

@@ -386,6 +386,7 @@ pub fn component(attr: TokenStream, input: TokenStream) -> TokenStream {
         channel_ident: &format_ident!("{}Channel", ident),
         server_ident: &format_ident!("Serve{}", ident),
         client_ident: &format_ident!("{}Client", ident),
+        newtype_lrclient_ident: &format_ident!("{}LRClient", ident),
         request_ident: &format_ident!("{}Request", ident),
         response_ident: &format_ident!("{}Response", ident),
         vis,
@@ -424,6 +425,7 @@ struct ServiceGenerator<'a> {
     channel_ident: &'a Ident,
     server_ident: &'a Ident,
     client_ident: &'a Ident,
+    newtype_lrclient_ident: &'a Ident,
     request_ident: &'a Ident,
     response_ident: &'a Ident,
     vis: &'a Visibility,
@@ -453,6 +455,7 @@ impl<'a> ServiceGenerator<'a> {
             service_ident,
             client_ident,
             client_stub_ident,
+            newtype_lrclient_ident,
             request_ident,
             response_ident,
             server_ident,
@@ -495,22 +498,19 @@ impl<'a> ServiceGenerator<'a> {
                     #server_ident { service: self }
                 }
 
-                /// Return a builder of a client that supports local and remote calls.
-                async fn logimesh_lrcall<D, LB>(
+                /// Returns a client that supports local and remote calls.
+                async fn logimesh_lrclient<D, LB>(
                     self,
                     endpoint: ::logimesh::component::Endpoint,
                     discover: D,
                     load_balance: LB,
                     config_ext: ::logimesh::client::lrcall::ConfigExt,
-                ) -> ::core::result::Result<
-                    #client_ident<::logimesh::client::lrcall::LRCall<#server_ident<Self>, D, LB, fn(&::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, u32) -> bool>>,
-                    ::logimesh::client::ClientError,
-                >
+                ) -> ::core::result::Result<#newtype_lrclient_ident<Self, D, LB>, ::logimesh::client::ClientError>
                     where
                         D: ::logimesh::client::discover::Discover,
                         LB: ::logimesh::client::balance::LoadBalance<#server_ident<Self>>,
                 {
-                    Ok(#client_ident(
+                    Ok(#newtype_lrclient_ident(#client_ident(
                         ::logimesh::client::lrcall::Builder::<#server_ident<Self>, D, LB, fn(&::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, u32) -> bool>::new(
                             ::logimesh::component::Component {
                                 serve: #server_ident { service: self },
@@ -524,7 +524,7 @@ impl<'a> ServiceGenerator<'a> {
                         .with_retry_fn(Self::logimesh_should_retry)
                         .try_spawn()
                         .await?,
-                    ))
+                    )))
                 }
 
                 /// Judge whether a retry should be made according to the result returned by the call.
@@ -775,6 +775,42 @@ impl<'a> ServiceGenerator<'a> {
         code
     }
 
+    fn newtype_lrclient(&self) -> TokenStream2 {
+        let &Self {
+            service_ident,
+            client_ident,
+            newtype_lrclient_ident,
+            server_ident,
+            vis,
+            response_ident,
+            ..
+        } = self;
+        quote! {
+            /// A client new-type that supports local and remote calls.
+            #vis struct #newtype_lrclient_ident<S, D, LB>(
+                #client_ident<::logimesh::client::lrcall::LRCall<#server_ident<S>, D, LB, fn(&::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, u32) -> bool>>,
+            )
+            where
+                S: #service_ident,
+                D: ::logimesh::client::discover::Discover,
+                LB: ::logimesh::client::balance::LoadBalance<#server_ident<S>>;
+
+            impl<S, D, LB> ::std::ops::Deref for #newtype_lrclient_ident<S, D, LB>
+            where
+                S: #service_ident,
+                D: ::logimesh::client::discover::Discover,
+                LB: ::logimesh::client::balance::LoadBalance<#server_ident<S>>,
+            {
+                type Target =
+                    #client_ident<::logimesh::client::lrcall::LRCall<#server_ident<S>, D, LB, fn(&::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, u32) -> bool>>;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.0
+                }
+            }
+        }
+    }
+
     fn emit_warnings(&self) -> TokenStream2 {
         self.warnings.iter().map(|w| w.to_token_stream()).collect()
     }
@@ -791,6 +827,7 @@ impl<'a> ToTokens for ServiceGenerator<'a> {
             self.struct_client(),
             self.impl_client_new(),
             self.impl_client_methods(),
+            self.newtype_lrclient(),
             self.emit_warnings(),
         ]);
     }
