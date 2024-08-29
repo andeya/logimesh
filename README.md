@@ -39,9 +39,8 @@ path = "src/lib.rs"
 ...
 
 [dependencies]
-anyhow = "1.0"
-futures = "0.3"
 logimesh = { version = "0.1" }
+anyhow = "1.0"
 tokio = { version = "1.0", features = ["macros"] }
 ```
 
@@ -96,7 +95,9 @@ impl World for CompHello {
 ### `server.rs` file
 
 ```rust
+extern crate logimesh;
 extern crate tokio;
+extern crate anyhow;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -108,8 +109,8 @@ async fn main() -> anyhow::Result<()> {
 ### `client.rs` file
 
 ```rust
-extern crate tokio;
 extern crate logimesh;
+extern crate tokio;
 extern crate anyhow;
 
 use logimesh::client::balance::RandomBalance;
