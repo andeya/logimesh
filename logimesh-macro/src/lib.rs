@@ -483,6 +483,7 @@ impl<'a> ServiceGenerator<'a> {
             #( #attrs )*
             #[allow(async_fn_in_trait)]
             #vis trait #service_ident: ::core::marker::Sized + ::core::clone::Clone + 'static {
+                /// The transport codec.
                 const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec = ::logimesh::transport::codec::Codec::Bincode;
                 // const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec;
 
@@ -532,6 +533,13 @@ impl<'a> ServiceGenerator<'a> {
                 #[allow(unused_variables)]
                 fn logimesh_should_retry(result: &::core::result::Result<#response_ident, ::logimesh::client::core::RpcError>, tried_times: u32) -> bool {
                     false
+                }
+
+                /// Returns the Self::TRANSPORT_CODEC.
+                /// NOTE: Implementation is not allowed to be overridden.
+                /// If you need to modify the encoder, Self::TRANSPORT_CODEC should be specified.
+                fn __logimesh_codec(&self) -> ::logimesh::transport::codec::Codec {
+                    Self::TRANSPORT_CODEC
                 }
             }
 

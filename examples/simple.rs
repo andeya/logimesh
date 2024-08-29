@@ -7,7 +7,6 @@
 
 use futures::prelude::*;
 use logimesh::server::{self, Channel};
-use logimesh::transport::codec::Codec;
 use logimesh::{client, context};
 
 /// This is the component definition. It looks a lot like a trait definition.
@@ -23,7 +22,6 @@ pub trait World {
 struct CompHello;
 
 impl World for CompHello {
-    const TRANSPORT_CODEC: Codec = Codec::Bincode;
     // Each defined rpc generates an async fn that serves the RPC
     async fn hello(self, _: context::Context, name: String) -> String {
         format!("Hello, {name}!")

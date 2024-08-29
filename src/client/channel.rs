@@ -27,6 +27,8 @@ pub struct RpcConfig {
     pub transport_codec: Codec,
     /// Settings that control the behavior of the underlying client.
     pub core_config: Config,
+    /// Maximum frame length, default is usize::MAX.
+    pub max_frame_len: usize,
 }
 
 impl RpcConfig {
@@ -36,6 +38,7 @@ impl RpcConfig {
             instance,
             transport_codec: Default::default(),
             core_config: Config::default(),
+            max_frame_len: usize::MAX,
         }
     }
     /// Set transport serde codec
@@ -59,11 +62,26 @@ impl RpcConfig {
         self.core_config.pending_request_buffer = pending_request_buffer;
         self
     }
+    /// Set maximum frame length, zero is usize::MAX.
+    pub fn with_max_frame_len(mut self, max_frame_len: usize) -> Self {
+        if max_frame_len <= 0 {
+            self.max_frame_len = usize::MAX;
+        } else {
+            self.max_frame_len = max_frame_len;
+        }
+        self
+    }
     /// Set the underlying client config.
     #[allow(dead_code)]
     pub(crate) fn with_core_config(mut self, core_config: Config) -> Self {
         self.core_config = core_config;
         self
+    }
+    // init config.
+    fn init(&mut self) {
+        if self.max_frame_len <= 0 {
+            self.max_frame_len = usize::MAX;
+        }
     }
 }
 
@@ -121,14 +139,22 @@ impl<S: Serve> Stub for RpcChannel<S> {
     }
 }
 
+impl<S: Serve> RpcChannel<S> {
+    /// Returns config
+    pub fn config(&self) -> &RpcConfig {
+        &self.inner.config
+    }
+}
+
 impl<S> RpcChannel<S>
 where
     S: Serve,
     S::Req: crate::serde::Serialize + Send + 'static,
     S::Resp: for<'de> crate::serde::Deserialize<'de> + Send + 'static,
 {
-    pub(crate) async fn new(config: RpcConfig) -> Result<Self, anyhow::Error> {
-        let channe = Self::new_channel(config.transport_codec.clone(), config.core_config.clone(), &config.instance.address).await?;
+    pub(crate) async fn new(mut config: RpcConfig) -> Result<Self, anyhow::Error> {
+        config.init();
+        let channe = Self::new_channel(&config).await?;
         Ok(Self {
             inner: Arc::new(InnerRpcChannel {
                 config,
@@ -137,40 +163,42 @@ where
         })
     }
 
-    async fn new_channel(transport_codec: Codec, stub_config: tarpc::client::Config, address: &Address) -> Result<Channel<S::Req, S::Resp>, anyhow::Error> {
-        let Address::Ip(address) = address else { anyhow::bail!("invalid address {address}") };
-        match transport_codec {
+    async fn new_channel(config: &RpcConfig) -> Result<Channel<S::Req, S::Resp>, anyhow::Error> {
+        let Address::Ip(address) = &config.instance.address else {
+            anyhow::bail!("invalid address {}", &config.instance.address)
+        };
+        match config.transport_codec {
             Codec::Bincode => {
                 // Bincode codec using [bincode](https://docs.rs/bincode) crate.
                 let mut conn = tcp::connect(address, Bincode::default);
-                conn.config_mut().max_frame_length(usize::MAX);
-                Ok(tarpc::client::new(stub_config, conn.await?).spawn())
+                conn.config_mut().max_frame_length(config.max_frame_len);
+                Ok(tarpc::client::new(config.core_config.clone(), conn.await?).spawn())
             },
             Codec::Json => {
                 // JSON codec using [serde_json](https://docs.rs/serde_json) crate.
                 let mut conn = tcp::connect(address, Json::default);
-                conn.config_mut().max_frame_length(usize::MAX);
-                Ok(tarpc::client::new(stub_config, conn.await?).spawn())
+                conn.config_mut().max_frame_length(config.max_frame_len);
+                Ok(tarpc::client::new(config.core_config.clone(), conn.await?).spawn())
             },
             #[cfg(feature = "serde-transport-messagepack")]
             Codec::MessagePack => {
                 /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
                 let mut conn = tcp::connect(address, MessagePack::default);
-                conn.config_mut().max_frame_length(usize::MAX);
-                Ok(tarpc::client::new(stub_config, conn.await?).spawn())
+                conn.config_mut().max_frame_length(config.max_frame_len);
+                Ok(tarpc::client::new(config.core_config.clone(), conn.await?).spawn())
             },
             #[cfg(feature = "serde-transport-cbor")]
             Codec::Cbor => {
                 /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
                 let mut conn = tcp::connect(address, Cbor::default);
-                conn.config_mut().max_frame_length(usize::MAX);
-                Ok(tarpc::client::new(stub_config, conn.await?).spawn())
+                conn.config_mut().max_frame_length(config.max_frame_len);
+                Ok(tarpc::client::new(config.core_config.clone(), conn.await?).spawn())
             },
         }
     }
 
     pub(crate) async fn reconnent(&self) -> Result<(), anyhow::Error> {
-        let channel = Self::new_channel(self.inner.config.transport_codec.clone(), self.inner.config.core_config.clone(), &self.inner.config.instance.address).await?;
+        let channel = Self::new_channel(&self.inner.config).await?;
         self.inner.channel.write().await.replace(channel);
         Ok(())
     }
@@ -182,12 +210,5 @@ where
         };
         inner.config.instance = instance;
         Self { inner: Arc::new(inner) }
-    }
-}
-
-impl<S: Serve> RpcChannel<S> {
-    /// Returns config
-    pub fn config(&self) -> &RpcConfig {
-        &self.inner.config
     }
 }

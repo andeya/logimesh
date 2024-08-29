@@ -19,6 +19,7 @@ use futures_util::{select, FutureExt};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::usize;
 use tokio::sync::Notify;
 use tracing::{trace, warn};
 
@@ -43,6 +44,8 @@ where
     pub(crate) transport_codec: Codec,
     /// Settings that control the behavior of the underlying client.
     pub(crate) core_config: Config,
+    /// Maximum frame length, default is usize::MAX.
+    pub(crate) max_frame_len: usize,
     /// A callback function for judging whether to re-initiate the request.
     pub(crate) retry_fn: Option<RF>,
 }
@@ -106,6 +109,7 @@ where
             load_balance: Arc::new(load_balance),
             transport_codec: Default::default(),
             core_config: Default::default(),
+            max_frame_len: usize::MAX,
             retry_fn: None,
         }
     }
@@ -139,6 +143,15 @@ where
     pub fn with_config_ext(mut self, config_ext: ConfigExt) -> Self {
         self.core_config.max_in_flight_requests = config_ext.max_in_flight_requests;
         self.core_config.pending_request_buffer = config_ext.pending_request_buffer;
+        self
+    }
+    /// Set maximum frame length, zero is usize::MAX.
+    pub fn with_max_frame_len(mut self, max_frame_len: usize) -> Self {
+        if max_frame_len <= 0 {
+            self.max_frame_len = usize::MAX;
+        } else {
+            self.max_frame_len = max_frame_len;
+        }
         self
     }
     /// Spawn a local and remote client.
@@ -189,6 +202,7 @@ where
                         instance,
                         transport_codec: self.config.transport_codec,
                         core_config: self.config.core_config.clone(),
+                        max_frame_len: self.config.max_frame_len,
                     })
                     .await;
                     match channel {
@@ -208,6 +222,7 @@ where
             let load_balance = self.config.load_balance.clone();
             let transport_codec = self.config.transport_codec;
             let core_config = self.config.core_config.clone();
+            let max_frame_len = self.config.max_frame_len;
             let notify = self.notify.clone();
             let use_rpc = self.use_rpc.clone();
             tokio::spawn(async move {
@@ -224,7 +239,7 @@ where
                             },
                             Ok(Discovery{instance_cluster:InstanceCluster::Rpc(next),..}) => {
                                 use_rpc.store(true, Ordering::Release);
-                                match Self::diff_and_dial(transport_codec, &core_config, &mut prev, next).await {
+                                match Self::diff_and_dial(transport_codec, &core_config, max_frame_len, &mut prev, next).await {
                                     Ok(changes) => {
                                         load_balance.rebalance(changes);
                                     },
@@ -240,7 +255,7 @@ where
         Ok(self)
     }
 
-    async fn diff_and_dial(transport_codec: Codec, core_config: &Config, prev: &mut Vec<RpcChannel<S>>, next: Vec<Arc<Instance>>) -> Result<Option<RpcChange<S>>, ClientError>
+    async fn diff_and_dial(transport_codec: Codec, core_config: &Config, max_frame_len: usize, prev: &mut Vec<RpcChannel<S>>, next: Vec<Arc<Instance>>) -> Result<Option<RpcChange<S>>, ClientError>
     where
         S: Serve,
     {
@@ -270,8 +285,9 @@ where
             if is_new {
                 let channel = RpcChannel::new(RpcConfig {
                     instance: instance.clone(),
-                    transport_codec: transport_codec,
+                    transport_codec,
                     core_config: core_config.clone(),
+                    max_frame_len,
                 })
                 .await;
                 match channel {

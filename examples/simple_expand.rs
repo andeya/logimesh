@@ -6,7 +6,8 @@ use logimesh::{client, context};
 #[doc = " It defines one RPC, hello, which takes one arg, name, and returns a String."]
 #[allow(async_fn_in_trait)]
 pub trait World: ::core::marker::Sized + ::core::clone::Clone + 'static {
-    const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec;
+    #[doc = r" The transport codec."]
+    const TRANSPORT_CODEC: ::logimesh::transport::codec::Codec = ::logimesh::transport::codec::Codec::Bincode;
     async fn hello(self, context: ::logimesh::context::Context, name: String) -> String;
     #[doc = r" Returns a serving function to use with"]
     #[doc = r" [InFlightRequest::execute](::logimesh::server::InFlightRequest::execute)."]
@@ -51,6 +52,12 @@ pub trait World: ::core::marker::Sized + ::core::clone::Clone + 'static {
     fn logimesh_should_retry(result: &::core::result::Result<WorldResponse, ::logimesh::client::core::RpcError>, tried_times: u32) -> bool {
         false
     }
+    #[doc = r" Returns the Self::TRANSPORT_CODEC."]
+    #[doc = r" NOTE: Implementation is not allowed to be overridden."]
+    #[doc = r" If you need to modify the encoder, Self::TRANSPORT_CODEC should be specified."]
+    fn __logimesh_codec(&self) -> ::logimesh::transport::codec::Codec {
+        Self::TRANSPORT_CODEC
+    }
 }
 #[derive(Debug, Clone, Copy)]
 pub struct UnimplWorld;
@@ -86,13 +93,7 @@ where
 }
 #[doc = r" The request sent over the wire from the client to the server."]
 #[allow(missing_docs)]
-#[derive(
-    Debug,
-    Clone,
-    :: logimesh :: serde :: Serialize,
-    :: logimesh :: serde ::
-Deserialize,
-)]
+#[derive(Debug, Clone, :: logimesh :: serde :: Serialize, :: logimesh :: serde ::Deserialize)]
 #[serde(crate = "::logimesh::serde")]
 pub enum WorldRequest {
     Hello { name: String },

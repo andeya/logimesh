@@ -47,10 +47,10 @@ tokio = { workspace = true, features = [
 thiserror = { workspace = true }
 metainfo = { workspace = true }
 faststr = { workspace = true }
-dashmap = { workspace = true }
 rand = { workspace = true }
 tracing = { workspace = true, features = ["attributes", "log"] }
 bytes = { workspace = true, features = ["serde"] }
+futures = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
@@ -97,7 +97,7 @@ resolver = "2"
 members = ["logimesh-macro", "logimesh-example"]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["Andeya Lee <andeyalee@outlook.com>"]
 license = "MIT"
