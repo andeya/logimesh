@@ -1,6 +1,6 @@
 # logimesh
 
-`logimesh` is a Rust microcomponent 2.0 framework inspired by the [_Towards Modern Development of Cloud Applications_](https://dl.acm.org/doi/pdf/10.1145/3593856.3595909) paper.
+`logimesh` is a Rust RPC Microservice 2.0 framework inspired by the [_Towards Modern Development of Cloud Applications_](https://dl.acm.org/doi/pdf/10.1145/3593856.3595909) paper.
 
 _（This is one of my amateur idea and is only developed in leisure-time.）_
 
@@ -123,7 +123,7 @@ use service::{CompHello, World};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let client = CompHello
-        .logimesh_lrcall(
+        .logimesh_lrclient(
             Endpoint::new("p.s.m"),
             FixedDiscover::from_address(vec!["[::1]:8888".parse::<std::net::SocketAddrV6>().unwrap()]),
             RandomBalance::new(),
@@ -131,14 +131,11 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    let hello = async move {
-        // Send the request twice, just to be safe! ;)
-        tokio::select! {
-            hello1 = client.hello(context::current(), format!("{}1", flags.name)) => { hello1 }
-            hello2 = client.hello(context::current(), format!("{}2", flags.name)) => { hello2 }
-        }
-    }
-    .await;
+    // Send the request twice, just to be safe! ;)
+    let hello = tokio::select! {
+        hello1 = client.hello(context::current(), format!("{}1", flags.name)) => { hello1 }
+        hello2 = client.hello(context::current(), format!("{}2", flags.name)) => { hello2 }
+    };
 
     match hello {
         Ok(hello) => println!("{hello:?}"),

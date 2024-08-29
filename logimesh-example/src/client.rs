@@ -31,9 +31,9 @@ struct Flags {
 async fn main() -> anyhow::Result<()> {
     let flags = Flags::parse();
     init_tracing("Logimesh Example Client")?;
-
+    // client type: WorldLRClient<CompHello, FixedDiscover, RandomBalance<ServeWorld<CompHello>>>
     let client = CompHello
-        .logimesh_lrcall(
+        .logimesh_lrclient(
             Endpoint::new("p.s.m"),
             FixedDiscover::from_address(vec![flags.server_addr.into()]),
             RandomBalance::new(),
@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     let hello = async move {
         // Send the request twice, just to be safe! ;)
         tokio::select! {
-            // hello1 = client.hello(context::current(), format!("{}1", flags.name)) => { hello1 }
+            hello1 = client.hello(context::current(), format!("{}1", flags.name)) => { hello1 }
             hello2 = client.hello(context::current(), format!("{}2", flags.name)) => { hello2 }
         }
     }

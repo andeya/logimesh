@@ -22,6 +22,7 @@ pub trait World {
 struct CompHello;
 
 impl World for CompHello {
+    const TRANSPORT_CODEC: logimesh::transport::codec::Codec = logimesh::transport::codec::Codec::Bincode;
     // Each defined rpc generates an async fn that serves the RPC
     async fn hello(self, _: context::Context, name: String) -> String {
         format!("Hello, {name}!")
