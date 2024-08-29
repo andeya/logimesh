@@ -122,7 +122,7 @@ impl<A: ToSocketAddrs> TcpConfig<A> {
 /// ```
 #[macro_export]
 macro_rules! tokio_tcp_listen {
-    ($component:expr, $tcp_config:expr) => {{
+    ($component:expr, $tcp_config:expr $(,)?) => {{
         use ::logimesh::futures::prelude::*;
         use ::logimesh::server::incoming::Incoming as _;
         use ::logimesh::server::Channel as _;
