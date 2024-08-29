@@ -182,14 +182,14 @@ where
             },
             #[cfg(feature = "serde-transport-messagepack")]
             Codec::MessagePack => {
-                /// MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
+                // MessagePack codec using [rmp-serde](https://docs.rs/rmp-serde) crate.
                 let mut conn = tcp::connect(address, MessagePack::default);
                 conn.config_mut().max_frame_length(config.max_frame_len);
                 Ok(tarpc::client::new(config.core_config.clone(), conn.await?).spawn())
             },
             #[cfg(feature = "serde-transport-cbor")]
             Codec::Cbor => {
-                /// CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
+                // CBOR codec using [serde_cbor](https://docs.rs/serde_cbor) crate.
                 let mut conn = tcp::connect(address, Cbor::default);
                 conn.config_mut().max_frame_length(config.max_frame_len);
                 Ok(tarpc::client::new(config.core_config.clone(), conn.await?).spawn())
