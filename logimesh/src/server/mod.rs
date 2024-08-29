@@ -132,7 +132,15 @@ macro_rules! tokio_tcp_listen {
         listener.config_mut().max_frame_length($tcp_config.max_frame_len());
         listener
             // Ignore accept errors.
-            .filter_map(|r| future::ready(r.ok()))
+            .filter_map(|r| {
+                future::ready(r.map_or_else(
+                    |err| {
+                        ::logimesh::tracing::trace!("[LOGIMESH] An accepting connection error: {err:?}");
+                        ::core::option::Option::None
+                    },
+                    ::core::option::Option::Some,
+                ))
+            })
             .map(|transport| {
                 ::logimesh::server::BaseChannel::new(
                     ::logimesh::server::Config {
