@@ -14,18 +14,6 @@ mod core {
 }
 
 /// TCP server config.
-/// # Example:
-/// ```
-/// extern crate tokio;
-/// extern crate anyhow;
-/// extern crate logimesh;
-///
-/// #[tokio::main]
-/// async fn main() -> anyhow::Result<()> {
-///     logimesh::tokio_tcp_listen!(CompHello, logimesh::server::TcpConfig::new("[::1]:8888".parse::<std::net::SocketAddrV6>().unwrap()));
-///     Ok(())
-/// }
-/// ```
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct TcpConfig<A: ToSocketAddrs> {
@@ -120,6 +108,18 @@ impl<A: ToSocketAddrs> TcpConfig<A> {
 }
 
 /// Listen a TCP server.
+/// # Example:
+/// ```
+/// extern crate tokio;
+/// extern crate anyhow;
+/// extern crate logimesh;
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     logimesh::tokio_tcp_listen!(CompHello, logimesh::server::TcpConfig::new("[::1]:8888".parse::<std::net::SocketAddrV6>().unwrap()));
+///     Ok(())
+/// }
+/// ```
 #[macro_export]
 macro_rules! tokio_tcp_listen {
     ($component:expr, $tcp_config:expr) => {{
@@ -128,7 +128,7 @@ macro_rules! tokio_tcp_listen {
         use ::logimesh::server::Channel as _;
         let serve = $component.logimesh_serve();
         let mut listener = ::logimesh::transport::tcp::listen($tcp_config.listen_address(), $component.__logimesh_codec().to_fn()).await.unwrap();
-        ::std::println!("[LOGIMESH] Listening on {}", listener.local_addr());
+        ::logimesh::tracing::info!("[LOGIMESH] Listening on {}", listener.local_addr());
         listener.config_mut().max_frame_length($tcp_config.max_frame_len());
         listener
             // Ignore accept errors.
