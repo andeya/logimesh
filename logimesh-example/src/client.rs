@@ -29,12 +29,18 @@ struct Flags {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let flags = Flags::parse();
+    let flags = Flags::try_parse().map_or(
+        Flags {
+            server_addr: "[::1]:8888".parse().unwrap(),
+            name: "p.s.m".to_string(),
+        },
+        Into::into,
+    );
     init_tracing("Logimesh Example Client")?;
     // client type: WorldLRClient<CompHello, FixedDiscover, RandomBalance<ServeWorld<CompHello>>>
     let client = CompHello
         .logimesh_lrclient(
-            Endpoint::new("p.s.m"),
+            Endpoint::new(flags.name.clone()),
             FixedDiscover::from_address(vec![flags.server_addr.into()]),
             RandomBalance::new(),
             ConfigExt::default(),
