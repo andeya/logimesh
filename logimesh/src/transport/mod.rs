@@ -9,7 +9,7 @@ pub mod codec;
 pub use ::tarpc::serde_transport::{new, unix};
 pub use ::tarpc::transport::channel;
 pub use ::tarpc::Transport;
-
+pub(crate) mod smux;
 pub mod tcp {
     //! tcp transport
     pub use ::tarpc::serde_transport::tcp::*;
