@@ -52,6 +52,7 @@ tracing = { workspace = true, features = ["attributes", "log"] }
 bytes = { workspace = true, features = ["serde"] }
 futures = { workspace = true }
 tokio-serde = { workspace = true, features = ["json", "bincode"] }
+etcd-client = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }

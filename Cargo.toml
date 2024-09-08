@@ -68,6 +68,7 @@ console-subscriber = "0.2"
 trybuild = "1.0"
 tokio-rustls = "0.25"
 rustls-pemfile = "2.0"
+etcd-client = "0.14"
 
 [profile.dev]
 split-debuginfo = "unpacked"

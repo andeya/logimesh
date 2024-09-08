@@ -7,21 +7,23 @@
 //!
 //! Client Stub Information discovery
 
+use super::ClientError;
 use crate::component::Endpoint;
 use crate::net::address::Address;
 use async_broadcast::Receiver;
+use core::marker::Send;
+pub use dummy::DummyDiscover;
 use faststr::FastStr;
+pub use fixed::FixedDiscover;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
+
 mod dummy;
+pub mod etcd;
 mod fixed;
-use super::ClientError;
-use core::marker::Send;
-pub use dummy::DummyDiscover;
-pub use fixed::FixedDiscover;
 
 /// [`Discover`] is the most basic trait for Discover.
 pub trait Discover: Send + Sync + 'static {
