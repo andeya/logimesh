@@ -28,10 +28,12 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+tokio-util = { workspace = true, features = ["time"] }
 tarpc = { workspace = true, features = ["full"] }
 logimesh-macro = { workspace = true, features = ["serde1"] }
 serde = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }
+pin-project = { workspace = true }
 pin-project-lite = { workspace = true }
 futures-core = { workspace = true }
 futures-util = { workspace = true, features = ["alloc"] }
